@@ -2,42 +2,64 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <link rel="icon" href="%PUBLIC_URL%/favicon.ico" />
+    <meta name="google-site-verification" content="6JXK2f6mMQ6S2nadKGw5ha3CRRXsONfiRAgpzIAcbCo" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#000000" />
-    <meta
-      name="description"
-      content="Web site created using create-react-app"
-    />
-    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo192.png" />
-    <!--
-      manifest.json provides metadata used when your web app is installed on a
-      user's mobile device or desktop. See https://developers.google.com/web/fundamentals/web-app-manifest/
-    -->
-    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
-    <!--
-      Notice the use of %PUBLIC_URL% in the tags above.
-      It will be replaced with the URL of the `public` folder during the build.
-      Only files inside the `public` folder can be referenced from the HTML.
+    <meta name="description" content="Track and manage your expenses efficiently with Expense-Manager." />
 
-      Unlike "/favicon.ico" or "favicon.ico", "%PUBLIC_URL%/favicon.ico" will
-      work correctly both with client-side routing and a non-root public URL.
-      Learn how to configure a non-root public URL by running `npm run build`.
-    -->
-    <title>React App</title>
+    <!-- SEO Meta Tags -->
+    <meta name="keywords" content="Expense Manager, Budgeting, Finance Tracker, Money Management" />
+    <meta name="author" content="Expense Management System" />
+
+    <!-- Open Graph Meta Tags (for social media previews) -->
+    <meta property="og:title" content="Best Expense Tracker - Manage Group Expenses & Split Money" />
+<meta property="og:description" content="An easy-to-use expense tracker to manage personal and group expenses. Split bills, track spending, and stay within budget effortlessly." />
+<meta property="og:image" content="https://trackmyspends.vercel.app/assets/logo512.png" />
+<meta property="og:url" content="https://trackmyspends.vercel.app/" />
+<meta property="og:type" content="website" />
+
+ <!-- Structured Data (Schema Markup) -->
+ <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    "name": "Expense Manager",
+    "url": "https://trackmyspends.vercel.app/",
+    "description": "Track your expenses, manage group expenses, and split bills with ease.",
+    "applicationCategory": "Finance",
+    "operatingSystem": "All",
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>
+
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="Expense Tracker " />
+<meta name="twitter:description" content="Split money with friends, track expenses, and manage your budget easily. The best expense manager for smart finance tracking." />
+<meta name="twitter:image" content="https://trackmyspends.vercel.app/logo512.png" />
+
+    <!-- Custom Favicon & Icon -->
+    <link rel="icon" href="%PUBLIC_URL%/logo512.png" />
+    <link rel="apple-touch-icon" href="%PUBLIC_URL%/logo512.png" />
+    <link rel="manifest" href="%PUBLIC_URL%/manifest.json" />
+
+    <title> Expense Tracker </title>
+    <meta name="description" content="Track your expenses, split money with friends, and manage group expenses effortlessly. The best free expense tracker for budgeting and finance management." />
+    <meta name="keywords" content="expense tracker, expense management, group expenses, split money, budget planner, finance app, bill splitting, money manager, personal finance" />
   </head>
   <body>
     <noscript>You need to enable JavaScript to run this app.</noscript>
-    <div id="root"></div>
-    <!--
-      This HTML file is a template.
-      If you open it directly in the browser, you will see an empty page.
+    
+    <!-- Loading Fallback Before React Renders -->
+    <div id="root">
+      <div style="text-align: center; padding: 50px; font-size: 18px; color: #4CAF50;">
+        <img src="%PUBLIC_URL%/logo512.png" alt="App Icon" width="50" height="50" />
+        <p>Loading...</p>
+      </div>
+    </div>
 
-      You can add webfonts, meta tags, or analytics to this file.
-      The build step will place the bundled scripts into the <body> tag.
-
-      To begin the development, run `npm start` or `yarn start`.
-      To create a production bundle, use `npm run build` or `yarn build`.
-    -->
   </body>
 </html>
