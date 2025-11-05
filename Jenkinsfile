@@ -3,7 +3,7 @@ pipeline {
 
     environment {
         NODE_ENV = 'production'
-        AWS_CREDENTIALS_ID = 'aws-credentials' // The Jenkins ID we saved
+        AWS_CREDENTIALS_ID = 'RA2211003011947' // The Jenkins ID we saved
         S3_BUCKET = 'aws-bucket-cashdash951'
         REGION = 'ap-south-1'
     }
