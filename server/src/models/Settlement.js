@@ -7,7 +7,8 @@ const settlementSchema = new mongoose.Schema(
     toUserId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     amountMinor: { type: Number, required: true, validate: Number.isInteger, min: 1 },
     note: { type: String, trim: true, default: "" },
-    settledAt: { type: Date, required: true, default: Date.now }
+    settledAt: { type: Date, required: true, default: Date.now },
+    expiresAt: { type: Date, index: { expires: 0 } } // TTL index for ephemeral demo settlements
   },
   { timestamps: true }
 );

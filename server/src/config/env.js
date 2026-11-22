@@ -1,30 +1,18 @@
 import "dotenv/config";
 import { z } from "zod";
 
-// Validates that a string is an http(s) origin with no path or trailing slash
-const httpOriginSchema = z.string().refine(
-  (val) => {
-    try {
-      const url = new URL(val);
-      return (
-        (url.protocol === "http:" || url.protocol === "https:") &&
-        url.pathname === "/" &&
-        !val.endsWith("/")
-      );
-    } catch {
-      return false;
-    }
-  },
-  { message: "Must be an http(s) origin with no path or trailing slash" }
-);
-
-// Validates comma-separated list of http(s) origins
+// Validates comma-separated list of valid URLs (using z.url() per trimmed origin)
 const clientUrlSchema = z.string().min(1).refine(
   (val) => {
     const origins = val.split(",").map((o) => o.trim());
     return origins.every((origin) => {
+      // Use z.url() to validate each origin
+      const result = z.url().safeParse(origin);
+      if (!result.success) return false;
+      
       try {
         const url = new URL(origin);
+        // Must be http or https with no path (except /) and no trailing slash
         return (
           (url.protocol === "http:" || url.protocol === "https:") &&
           url.pathname === "/" &&
@@ -39,7 +27,7 @@ const clientUrlSchema = z.string().min(1).refine(
 );
 
 const envSchema = z.object({
-  PORT: z.coerce.number().int().positive().default(5000),
+  PORT: z.coerce.number().int().positive().default(5001),
   MONGODB_URI: z.string().min(1),
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
