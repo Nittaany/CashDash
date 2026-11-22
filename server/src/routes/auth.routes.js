@@ -9,14 +9,14 @@ import { AppError } from "../middleware/errorHandler.js";
 import { validate } from "../middleware/validate.js";
 import { authenticate, blockDemoUser } from "../middleware/auth.js";
 import { authRateLimiter, demoRateLimiter } from "../middleware/rateLimit.js";
-import { ensureDemoData } from "../services/demoSeed.js";
+import { createEphemeralDemoUser } from "../services/demoSeed.js";
 
 const router = Router();
 
-// Zod schemas with strict mode and limits
+// Zod schemas with strict mode and limits (Zod 4 style: z.email())
 const registerSchema = z.strictObject({
   name: z.string().min(2).max(100),
-  email: z.string().email().max(255).toLowerCase(),
+  email: z.email().max(255).toLowerCase(),
   password: z.string().min(8).max(72).regex(/[a-zA-Z]/, "must contain a letter").regex(/[0-9]/, "must contain a number"),
   phone: z.string().max(20).optional(),
   paymentHandle: z.string().max(100).optional(),
@@ -24,7 +24,7 @@ const registerSchema = z.strictObject({
 });
 
 const loginSchema = z.strictObject({
-  email: z.string().email().max(255).toLowerCase(),
+  email: z.email().max(255).toLowerCase(),
   password: z.string().min(1).max(72)
 });
 
@@ -157,7 +157,7 @@ router.post("/login", authRateLimiter, validate({ body: loginSchema }), async (r
 // POST /api/auth/demo
 router.post("/demo", demoRateLimiter, async (req, res, next) => {
   try {
-    const user = await ensureDemoData();
+    const user = await createEphemeralDemoUser();
 
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);

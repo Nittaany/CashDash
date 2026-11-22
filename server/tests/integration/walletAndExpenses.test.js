@@ -209,4 +209,120 @@ describe("Wallet & Expenses Routes", () => {
       expect(walletRes.body.walletBalanceMinor).toBe(0);
     });
   });
+
+  describe("GET /api/expenses filters and pagination", () => {
+    beforeEach(async () => {
+      // Top up wallet
+      await request(app)
+        .post("/api/wallet/topup")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({ amountMinor: 500000 });
+
+      // Create multiple expenses with different categories and modes
+      const expenses = [
+        { amountMinor: 10000, category: "Food", paymentMode: "WALLET" },
+        { amountMinor: 20000, category: "Transport", paymentMode: "CASH" },
+        { amountMinor: 15000, category: "Food", paymentMode: "CARD" },
+        { amountMinor: 8000, category: "Entertainment", paymentMode: "WALLET" },
+        { amountMinor: 5000, category: "Food", paymentMode: "UPI" }
+      ];
+
+      for (const exp of expenses) {
+        await request(app)
+          .post("/api/expenses")
+          .set("Authorization", `Bearer ${accessToken}`)
+          .send({
+            ...exp,
+            description: `Test ${exp.category}`,
+            date: new Date().toISOString()
+          });
+      }
+    });
+
+    it("filters by category", async () => {
+      const res = await request(app)
+        .get("/api/expenses?category=Food")
+        .set("Authorization", `Bearer ${accessToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.expenses.length).toBe(3);
+      expect(res.body.expenses.every((e) => e.category === "Food")).toBe(true);
+    });
+
+    it("filters by paymentMode", async () => {
+      const res = await request(app)
+        .get("/api/expenses?paymentMode=WALLET")
+        .set("Authorization", `Bearer ${accessToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.expenses.length).toBe(2);
+      expect(res.body.expenses.every((e) => e.paymentMode === "WALLET")).toBe(true);
+    });
+
+    it("paginates results", async () => {
+      const res = await request(app)
+        .get("/api/expenses?limit=2&page=1")
+        .set("Authorization", `Bearer ${accessToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.expenses.length).toBe(2);
+      expect(res.body.pagination.page).toBe(1);
+      expect(res.body.pagination.total).toBe(5);
+      expect(res.body.pagination.pages).toBe(3);
+    });
+  });
+
+  describe("Monthly summary byCategory accuracy", () => {
+    it("correctly calculates category breakdown", async () => {
+      // Top up
+      await request(app)
+        .post("/api/wallet/topup")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({ amountMinor: 100000 });
+
+      // Create expenses this month
+      const today = new Date();
+      await request(app)
+        .post("/api/expenses")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          amountMinor: 10000,
+          category: "Food",
+          paymentMode: "WALLET",
+          description: "Test",
+          date: today.toISOString()
+        });
+
+      await request(app)
+        .post("/api/expenses")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          amountMinor: 15000,
+          category: "Food",
+          paymentMode: "WALLET",
+          description: "Test 2",
+          date: today.toISOString()
+        });
+
+      await request(app)
+        .post("/api/expenses")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          amountMinor: 5000,
+          category: "Transport",
+          paymentMode: "WALLET",
+          description: "Test 3",
+          date: today.toISOString()
+        });
+
+      const res = await request(app)
+        .get("/api/wallet")
+        .set("Authorization", `Bearer ${accessToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.monthlySummary.totalSpentMinor).toBe(30000);
+      expect(res.body.monthlySummary.byCategory.Food).toBe(25000);
+      expect(res.body.monthlySummary.byCategory.Transport).toBe(5000);
+    });
+  });
 });

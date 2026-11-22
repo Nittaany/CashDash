@@ -10,7 +10,8 @@ const userSchema = new mongoose.Schema(
     currency: { type: String, enum: ["NPR", "INR", "USD"], default: "NPR" },
     walletBalanceMinor: { type: Number, default: 0, min: 0, validate: Number.isInteger },
     isDemo: { type: Boolean, default: false },
-    refreshTokenHash: { type: String, select: false }
+    refreshTokenHash: { type: String, select: false },
+    expiresAt: { type: Date, index: { expires: 0 } } // TTL index for ephemeral demo users
   },
   { timestamps: true }
 );
