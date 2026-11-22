@@ -10,11 +10,14 @@ export default defineConfig({
     fileParallelism: false,
     env: {
       NODE_ENV: "test",
-      PORT: "3001",
+      PORT: "5001",
       MONGODB_URI: "mongodb://localhost:27017/cashdash-test",
       JWT_ACCESS_SECRET: "test-access-secret-at-least-32-characters-long",
       JWT_REFRESH_SECRET: "test-refresh-secret-at-least-32-characters-long",
-      CLIENT_URL: "http://localhost:3000"
+      CLIENT_URL: "http://localhost:3000,http://localhost:5173",
+      TRUST_PROXY: "1",
+      COOKIE_SECURE: "false",
+      COOKIE_SAMESITE: "lax"
     },
     coverage: {
       provider: "v8",
