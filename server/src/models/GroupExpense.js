@@ -17,7 +17,8 @@ const groupExpenseSchema = new mongoose.Schema(
     amountMinor: { type: Number, required: true, validate: Number.isInteger, min: 1 },
     splitType: { type: String, enum: ["EQUAL", "EXACT", "PERCENT"], required: true },
     splits: { type: [splitSchema], required: true },
-    date: { type: Date, required: true, default: Date.now }
+    date: { type: Date, required: true, default: Date.now },
+    expiresAt: { type: Date, index: { expires: 0 } } // TTL index for ephemeral demo expenses
   },
   { timestamps: true }
 );

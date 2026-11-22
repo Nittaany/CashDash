@@ -8,7 +8,7 @@ import GroupExpense from "../models/GroupExpense.js";
 
 /**
  * Creates an ephemeral demo user with sample data
- * User expires in 2 hours via TTL index
+ * All documents expire in 2 hours via TTL index
  * Returns the demo user
  */
 export async function createEphemeralDemoUser() {
@@ -48,7 +48,7 @@ export async function createEphemeralDemoUser() {
     expiresAt
   });
 
-  // Seed personal expenses (relative dates)
+  // Seed personal expenses (relative dates) - all with expiresAt
   const personalExpenses = [
     { category: "Food", description: "Lunch at Bhat Bhateni", amountMinor: 35000, paymentMode: "WALLET", daysAgo: 1 },
     { category: "Transport", description: "Taxi to Thamel", amountMinor: 25000, paymentMode: "CASH", daysAgo: 2 },
@@ -68,20 +68,22 @@ export async function createEphemeralDemoUser() {
       category: exp.category,
       description: exp.description,
       paymentMode: exp.paymentMode,
-      date
+      date,
+      expiresAt // TTL cleanup
     });
   }
 
-  // Create demo group
+  // Create demo group with expiresAt
   const group = await Group.create({
     name: "Pokhara Weekend Trip",
     description: "Trip expenses for the Pokhara getaway",
     currency: "NPR",
     createdBy: demoUser._id,
-    members: [demoUser._id, teammate1._id, teammate2._id]
+    members: [demoUser._id, teammate1._id, teammate2._id],
+    expiresAt // TTL cleanup
   });
 
-  // Seed group expenses
+  // Seed group expenses - all with expiresAt
   const groupExpenses = [
     {
       description: "Hotel Booking",
@@ -132,7 +134,8 @@ export async function createEphemeralDemoUser() {
       amountMinor: gExp.amountMinor,
       splitType: gExp.splitType,
       splits: gExp.splits,
-      date
+      date,
+      expiresAt // TTL cleanup
     });
   }
 

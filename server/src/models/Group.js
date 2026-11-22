@@ -7,7 +7,8 @@ const groupSchema = new mongoose.Schema(
     currency: { type: String, enum: ["NPR", "INR", "USD"], default: "NPR" },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", index: true }],
-    settlementVersion: { type: Number, default: 0 } // For optimistic concurrency on settlements
+    settlementVersion: { type: Number, default: 0 }, // For optimistic concurrency on settlements
+    expiresAt: { type: Date, index: { expires: 0 } } // TTL index for ephemeral demo groups
   },
   { timestamps: true }
 );

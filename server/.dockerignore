@@ -1,10 +1,6 @@
 node_modules
-npm-debug.log
-.env
-.env.*
-!.env.example
-coverage
-.nyc_output
-dist
+.env*
+tests/
+coverage/
 *.log
 .DS_Store
