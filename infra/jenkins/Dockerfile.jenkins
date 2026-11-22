@@ -1,4 +1,4 @@
-# Reconstructed reference: Jenkins controller with Node.js 24, npm, Git, and AWS CLI v2
+# Reconstructed reference: Jenkins controller with Node.js 22, npm, Git, and AWS CLI v2
 # Documents the containerized Jenkins setup from the original AWS S3/CloudFront pipeline
 #
 # Usage:
@@ -14,8 +14,8 @@ RUN apt-get update && \
     apt-get install -y git && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Node.js 24 and npm
-RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
+# Install Node.js 22 and npm
+RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
     apt-get install -y nodejs && \
     rm -rf /var/lib/apt/lists/* && \
     node --version && npm --version
