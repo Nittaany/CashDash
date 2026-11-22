@@ -80,7 +80,8 @@ app.get("/api/health", (_request, response) => {
   response.status(200).json({
     status: "ok",
     db: states[mongoose.connection.readyState] ?? "unknown",
-    uptimeSeconds: Math.floor(process.uptime())
+    uptimeSeconds: Math.floor(process.uptime()),
+    mailConfigured: Boolean(env.RESEND_API_KEY)
   });
 });
 

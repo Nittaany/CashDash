@@ -4,11 +4,13 @@
  * - In dev/test without RESEND_API_KEY: uses mock transport (no external deps)
  */
 
-// Get primary client origin for email links (lazy load to avoid circular dependency)
-function getPrimaryClientOrigin() {
-  const clientUrl = process.env.CLIENT_URL || "http://localhost:3000";
-  const origins = clientUrl.split(",").map((o) => o.trim());
-  return origins[0];
+// Lazy-load env to avoid circular dependency during test setup
+let _env = null;
+function getEnv() {
+  if (!_env) {
+    _env = import("../config/env.js").then((m) => m.env);
+  }
+  return _env;
 }
 
 // Mock transport for tests and dev without RESEND_API_KEY
@@ -17,8 +19,9 @@ const mockTransport = {
   async send(to, subject, html) {
     const email = { to, subject, html, sentAt: new Date() };
     this.sentEmails.push(email);
+    // Never log email bodies or tokens - just the fact an email was queued
     if (process.env.NODE_ENV === "development") {
-      console.log(`[MAILER] Would send email to ${to}: ${subject}`);
+      console.log(`[MAILER] Email queued for ${to}`);
     }
     return email;
   },
@@ -38,11 +41,12 @@ export { mockTransport };
  * @returns {Promise<{ id?: string, mock?: boolean }>}
  */
 async function sendEmail(to, subject, html) {
-  const resendKey = process.env.RESEND_API_KEY;
-  const mailFrom = process.env.MAIL_FROM || "CashDash <onboarding@resend.dev>";
+  const env = await getEnv();
+  const resendKey = env.RESEND_API_KEY;
+  const mailFrom = env.MAIL_FROM;
 
   // Use mock transport in test env or when RESEND_API_KEY is not set
-  if (process.env.NODE_ENV === "test" || !resendKey) {
+  if (env.NODE_ENV === "test" || !resendKey) {
     await mockTransport.send(to, subject, html);
     return { mock: true };
   }
@@ -63,8 +67,8 @@ async function sendEmail(to, subject, html) {
   });
 
   if (!response.ok) {
-    const error = await response.text();
-    console.error(`[MAILER] Resend error: ${response.status} - ${error}`);
+    // Log status only, never the response body which might contain sensitive info
+    console.error(`[MAILER] Resend error: ${response.status}`);
     throw new Error(`Email send failed: ${response.status}`);
   }
 
@@ -79,7 +83,8 @@ async function sendEmail(to, subject, html) {
  * @returns {Promise<boolean>}
  */
 export async function sendPasswordResetEmail(email, token) {
-  const resetUrl = `${getPrimaryClientOrigin()}/reset-password?token=${encodeURIComponent(token)}`;
+  const env = await getEnv();
+  const resetUrl = `${env.primaryClientUrl}/reset-password?token=${encodeURIComponent(token)}`;
   
   const subject = "CashDash - Password Reset Request";
   const html = `
@@ -101,7 +106,8 @@ export async function sendPasswordResetEmail(email, token) {
  * @returns {Promise<boolean>}
  */
 export async function sendVerificationEmail(email, token) {
-  const verifyUrl = `${getPrimaryClientOrigin()}/verify-email?token=${encodeURIComponent(token)}`;
+  const env = await getEnv();
+  const verifyUrl = `${env.primaryClientUrl}/verify-email?token=${encodeURIComponent(token)}`;
   
   const subject = "CashDash - Verify Your Email";
   const html = `

@@ -26,12 +26,33 @@ const clientUrlSchema = z.string().min(1).refine(
   { message: "CLIENT_URL must be comma-separated http(s) origins with no path or trailing slash" }
 );
 
+// Optional single origin for email links (overrides first CLIENT_URL entry)
+const appUrlSchema = z.string().optional().refine(
+  (val) => {
+    if (!val) return true;
+    const result = z.url().safeParse(val);
+    if (!result.success) return false;
+    try {
+      const url = new URL(val);
+      return (
+        (url.protocol === "http:" || url.protocol === "https:") &&
+        url.pathname === "/" &&
+        !val.endsWith("/")
+      );
+    } catch {
+      return false;
+    }
+  },
+  { message: "APP_URL must be a single http(s) origin with no path or trailing slash" }
+);
+
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(5001),
   MONGODB_URI: z.string().min(1),
   JWT_ACCESS_SECRET: z.string().min(32),
   JWT_REFRESH_SECRET: z.string().min(32),
   CLIENT_URL: clientUrlSchema,
+  APP_URL: appUrlSchema,
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   TRUST_PROXY: z.coerce.number().int().min(0).default(1),
   COOKIE_SECURE: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
@@ -43,7 +64,12 @@ const envSchema = z.object({
   REQUIRE_EMAIL_VERIFICATION: z.enum(["true", "false"]).default("false").transform((v) => v === "true")
 });
 
-export const env = envSchema.parse(process.env);
+const parsed = envSchema.parse(process.env);
+
+// Derive primaryClientUrl: APP_URL if set, otherwise first CLIENT_URL entry
+const primaryClientUrl = parsed.APP_URL || parsed.CLIENT_URL.split(",")[0].trim();
+
+export const env = { ...parsed, primaryClientUrl };
 
 // Export for testing
 export { clientUrlSchema };

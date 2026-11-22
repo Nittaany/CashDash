@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
+import "./setup.js";
 import { app } from "../../src/app.js";
 
 describe("Group Member Removal", () => {

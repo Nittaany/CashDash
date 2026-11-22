@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { api } from "../api/client.js";
 import { Wallet, Loader2, Zap } from "lucide-react";
 
 export function LoginPage() {
@@ -13,6 +14,14 @@ export function LoginPage() {
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
+  const [mailConfigured, setMailConfigured] = useState(false);
+
+  // Check if mail is configured on mount
+  useEffect(() => {
+    api.get("/api/health")
+      .then((data) => setMailConfigured(data.mailConfigured === true))
+      .catch(() => setMailConfigured(false));
+  }, []);
 
   // Show message from navigation state (e.g., "Demo session ended")
   useEffect(() => {
@@ -98,11 +107,13 @@ export function LoginPage() {
               required
               className="w-full"
             />
-            <div className="mt-1 text-right">
-              <Link to="/forgot-password" className="text-sm text-emerald-500 hover:text-emerald-400">
-                Forgot password?
-              </Link>
-            </div>
+            {mailConfigured && (
+              <div className="mt-1 text-right">
+                <Link to="/forgot-password" className="text-sm text-emerald-500 hover:text-emerald-400">
+                  Forgot password?
+                </Link>
+              </div>
+            )}
           </div>
 
           <button

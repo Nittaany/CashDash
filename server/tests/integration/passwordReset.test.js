@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
 import crypto from "crypto";
+import "./setup.js";
 import { app } from "../../src/app.js";
 import User from "../../src/models/User.js";
 import { mockTransport } from "../../src/services/mailer.js";
-
-// Setup is handled by setup.js which runs beforeAll/afterAll/beforeEach hooks
 
 describe("Password Reset Flow", () => {
   beforeEach(() => {

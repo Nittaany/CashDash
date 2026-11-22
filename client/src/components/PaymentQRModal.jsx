@@ -1,20 +1,39 @@
 import { useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 
+// UPI VPA format: 2-256 alphanumeric/.-_ characters @ 2-64 alpha characters
+const UPI_VPA_REGEX = /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/;
+
 /**
- * Build a valid UPI payment URI
+ * Validate UPI VPA format
+ * @param {string} handle - Payment handle to validate
+ * @returns {boolean} - Whether handle is a valid UPI VPA
+ */
+export function isValidUpiVpa(handle) {
+  return typeof handle === "string" && UPI_VPA_REGEX.test(handle);
+}
+
+/**
+ * Build a valid UPI payment URI using integer math only
  * @param {string} payeeHandle - UPI ID (e.g., "user@upi")
  * @param {string} payeeName - Name of the payee
- * @param {number} amountMajor - Amount in major units (e.g., rupees, not paisa)
- * @param {string} currency - Currency code (NPR, INR, USD)
- * @returns {string} - Properly encoded UPI URI
+ * @param {number} amountMinor - Amount in minor units (paisa)
+ * @returns {string|null} - Properly encoded UPI URI or null if invalid
  */
-export function buildUpiUri(payeeHandle, payeeName, amountMajor, currency) {
+export function buildUpiUri(payeeHandle, payeeName, amountMinor) {
+  if (!isValidUpiVpa(payeeHandle)) return null;
+  if (!Number.isInteger(amountMinor) || amountMinor <= 0) return null;
+  
+  // Integer math only - no floating point
+  const whole = Math.floor(amountMinor / 100);
+  const frac = String(amountMinor % 100).padStart(2, "0");
+  const amountStr = `${whole}.${frac}`;
+  
   const params = new URLSearchParams();
   params.set("pa", payeeHandle);
   params.set("pn", payeeName);
-  params.set("am", amountMajor.toFixed(2));
-  params.set("cu", currency);
+  params.set("am", amountStr);
+  params.set("cu", "INR"); // UPI only supports INR
   return `upi://pay?${params.toString()}`;
 }
 
@@ -23,8 +42,14 @@ export function PaymentQRModal({ isOpen, onClose, payeeHandle, payeeName, amount
 
   if (!isOpen) return null;
 
-  const amountMajor = amountMinor / 100;
-  const upiUri = buildUpiUri(payeeHandle, payeeName, amountMajor, currency);
+  // UPI only works for INR with valid VPA
+  const isUpiSupported = currency === "INR" && isValidUpiVpa(payeeHandle);
+  const upiUri = isUpiSupported ? buildUpiUri(payeeHandle, payeeName, amountMinor) : null;
+
+  // Format amount for display using integer math
+  const whole = Math.floor(amountMinor / 100);
+  const frac = String(amountMinor % 100).padStart(2, "0");
+  const displayAmount = `${whole}.${frac}`;
 
   const handleCopy = async () => {
     try {
@@ -63,20 +88,33 @@ export function PaymentQRModal({ isOpen, onClose, payeeHandle, payeeName, amount
         </h2>
         
         <div className="flex flex-col items-center gap-4">
-          {/* QR Code */}
-          <div className="bg-white p-4 rounded-lg">
-            <QRCodeSVG 
-              value={upiUri} 
-              size={200}
-              level="M"
-              includeMargin={false}
-            />
-          </div>
+          {/* QR Code - only for INR with valid UPI VPA */}
+          {isUpiSupported && upiUri && (
+            <div className="bg-white p-4 rounded-lg">
+              <QRCodeSVG 
+                value={upiUri} 
+                size={200}
+                level="M"
+                includeMargin={false}
+              />
+            </div>
+          )}
+
+          {/* Non-UPI notice */}
+          {!isUpiSupported && (
+            <div className="text-center p-4 bg-slate-700 rounded-lg">
+              <p className="text-slate-300 text-sm">
+                {currency !== "INR" 
+                  ? `UPI QR is only available for INR payments. Please use the payment handle below for ${currency}.`
+                  : "Invalid UPI ID format. Please copy the payment handle below."}
+              </p>
+            </div>
+          )}
 
           {/* Amount */}
           <div className="text-center">
             <div className="text-2xl font-bold text-emerald-400">
-              {currency} {amountMajor.toLocaleString(currency === "USD" ? "en-US" : "en-IN", { minimumFractionDigits: 2 })}
+              {currency} {displayAmount}
             </div>
           </div>
 
@@ -94,8 +132,8 @@ export function PaymentQRModal({ isOpen, onClose, payeeHandle, payeeName, amount
             </div>
           </div>
 
-          {/* Mobile: Open Payment App */}
-          {isMobile && (
+          {/* Mobile: Open Payment App - only for valid UPI */}
+          {isMobile && isUpiSupported && upiUri && (
             <a
               href={upiUri}
               className="w-full px-4 py-3 bg-emerald-600 text-white text-center rounded-lg hover:bg-emerald-700 transition font-medium"

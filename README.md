@@ -12,7 +12,7 @@
 > rotating `HttpOnly` refresh cookies, a React 19 + Vite client, multi-stage Docker images, and a GitHub Actions pipeline,
 > deployed live on Vercel, Render and MongoDB Atlas.
 >
-> Measured at commit `20dc29f` (23 Nov 2026): **175 server tests, 58 client tests, 0 secret leaks**, server statement coverage **91.22%**.
+> Measured at commit `7787855` (23 Nov 2026): **180 server tests, 66 client tests, 0 secret leaks**, server coverage **90.63% statements / 90.99% lines**.
 
 ---
 
@@ -40,7 +40,7 @@ Demo data carries a 2-hour TTL and is deleted by MongoDB itself. The Render free
 | **Database** | MongoDB Atlas M0 (replica set, so multi-document transactions work) |
 | **Auth and security** | bcryptjs on the server, JWT (HS256 pinned), SHA-256-hashed rotating refresh token in an `HttpOnly` cookie, email verification flow, password reset with hashed single-use tokens, Helmet defaults, CORS allowlist, rate limits, Zod validation |
 | **Cloud and DevOps** | Multi-stage Dockerfiles, Compose with a self-initialising replica set, GitHub Actions (4 jobs), gitleaks, `render.yaml`, `client/vercel.json` |
-| **Verification** | 175 server + 58 client tests, 106 kB JS / 4 kB CSS gzip, CI green on `v2` |
+| **Verification** | 180 server + 66 client tests, 106 kB JS / 4.3 kB CSS gzip, CI green on `v2` |
 
 ---
 
@@ -269,14 +269,14 @@ v2 intentionally avoids premature distributed complexity. The clean service boun
 
 ### Reproducible results
 
-Measured at commit `20dc29f` (23 Nov 2026):
+Measured at commit `7787855` (23 Nov 2026):
 
 | Command | Result |
 |---|---|
-| `cd server && npm test` | 175 tests passing |
-| `cd server && npm run test:coverage` | 91.22% statements; `splitCalculator.js` 94.84%, `debtSimplifier.js` 94.31% |
-| `cd client && npm test` | 58 tests passing |
-| `cd client && npm run build` | 106 kB JS and 4 kB CSS gzip |
+| `cd server && npm test` | 180 tests passing (36s) |
+| `cd server && npm run test:coverage` | 90.63% statements / 90.99% lines |
+| `cd client && npm test` | 66 tests passing |
+| `cd client && npm run build` | 106 kB JS and 4.3 kB CSS gzip |
 | `gitleaks detect --source . --verbose` | 0 leaks |
 
 ### API surface
@@ -290,7 +290,7 @@ Measured at commit `20dc29f` (23 Nov 2026):
 | `/api/groups/*` | Groups, members, expenses, settlements, summary (paginated), CSV export |
 
 <details>
-<summary><strong>Full API reference (27 endpoints)</strong></summary>
+<summary><strong>Full API reference (28 endpoints)</strong></summary>
 
 | Endpoint | Method | Description |
 |---|---|---|
@@ -320,6 +320,7 @@ Measured at commit `20dc29f` (23 Nov 2026):
 | `/api/groups/:groupId/expenses/:expenseId` | DELETE | Delete (payer or group creator) |
 | `/api/groups/:groupId/settlements` | POST | Record a settlement |
 | `/api/groups/:groupId/export.csv` | GET | CSV export |
+| `/api/groups/:groupId/balances.csv` | GET | Net balances and simplified transfers CSV |
 
 </details>
 

@@ -581,4 +581,97 @@ router.get("/:groupId/export.csv", authenticate, validate({ params: groupIdParam
   }
 });
 
+// GET /api/groups/:groupId/balances.csv - Export balances and simplified transfers as CSV
+router.get("/:groupId/balances.csv", authenticate, validate({ params: groupIdParamsSchema }), async (req, res, next) => {
+  try {
+    const { groupId } = req.validated.params;
+    const group = await verifyGroupMember(groupId, req.user.userId);
+    await group.populate("members", "_id name email");
+
+    const [expenses, settlements] = await Promise.all([
+      GroupExpense.find({ groupId }),
+      Settlement.find({ groupId })
+    ]);
+
+    // Build member lookup
+    const memberMap = new Map();
+    for (const m of group.members) {
+      memberMap.set(m._id.toString(), m.name);
+    }
+
+    // Compute balances
+    const expensesForCalc = expenses.map((e) => ({
+      payerId: e.payerId.toString(),
+      amountMinor: e.amountMinor,
+      splits: e.splits.map((s) => ({
+        userId: s.userId.toString(),
+        amountMinor: s.amountMinor
+      }))
+    }));
+
+    const settlementsForCalc = settlements.map((s) => ({
+      fromUserId: s.fromUserId.toString(),
+      toUserId: s.toUserId.toString(),
+      amountMinor: s.amountMinor
+    }));
+
+    // Net balances per user
+    const netBalances = {};
+    for (const member of group.members) {
+      netBalances[member._id.toString()] = 0;
+    }
+    for (const expense of expensesForCalc) {
+      for (const split of expense.splits) {
+        if (split.userId !== expense.payerId) {
+          netBalances[split.userId] = (netBalances[split.userId] ?? 0) - split.amountMinor;
+          netBalances[expense.payerId] = (netBalances[expense.payerId] ?? 0) + split.amountMinor;
+        }
+      }
+    }
+    for (const settlement of settlementsForCalc) {
+      netBalances[settlement.fromUserId] = (netBalances[settlement.fromUserId] ?? 0) + settlement.amountMinor;
+      netBalances[settlement.toUserId] = (netBalances[settlement.toUserId] ?? 0) - settlement.amountMinor;
+    }
+
+    // Simplified transfers
+    const simplifiedTransfers = simplifyDebts({
+      expenses: expensesForCalc,
+      settlements: settlementsForCalc
+    });
+
+    // Build CSV
+    const rows = [];
+    
+    // Section 1: Net Balances
+    rows.push("Net Balances");
+    rows.push(["Member", "Balance (" + group.currency + ")"].map(sanitizeCSVCell).join(","));
+    for (const [userId, balance] of Object.entries(netBalances)) {
+      const name = memberMap.get(userId) ?? "Unknown";
+      const balanceStr = (balance / 100).toFixed(2);
+      rows.push([name, balanceStr].map(sanitizeCSVCell).join(","));
+    }
+    
+    rows.push(""); // Empty line separator
+    
+    // Section 2: Simplified Transfers
+    rows.push("Simplified Transfers");
+    rows.push(["From", "To", "Amount (" + group.currency + ")"].map(sanitizeCSVCell).join(","));
+    for (const transfer of simplifiedTransfers) {
+      const fromName = memberMap.get(transfer.fromUserId) ?? "Unknown";
+      const toName = memberMap.get(transfer.toUserId) ?? "Unknown";
+      const amountStr = (transfer.amountMinor / 100).toFixed(2);
+      rows.push([fromName, toName, amountStr].map(sanitizeCSVCell).join(","));
+    }
+
+    const csv = rows.join("\n");
+    const filename = `${group.name.replace(/[^a-zA-Z0-9]/g, "_")}_balances.csv`;
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;
