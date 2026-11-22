@@ -1,0 +1,10 @@
+# .gitleaks.toml - Gitleaks configuration for CashDash
+title = "CashDash Gitleaks Config"
+
+[allowlist]
+  description = "Allow test fixture passwords in integration tests"
+  paths = [
+    '''server/tests/integration/.*\.test\.js$''',
+    '''client/src/tests/.*\.test\.(js|jsx|ts|tsx)$'''
+  ]
+  regexTarget = "match"

@@ -49,7 +49,7 @@ function generateAccessToken(user) {
 
 function generateRefreshToken(user) {
   return jwt.sign(
-    { userId: user._id.toString(), tokenVersion: user.refreshTokenHash ? 1 : 0 },
+    { userId: user._id.toString(), jti: crypto.randomUUID() },
     env.JWT_REFRESH_SECRET,
     { algorithm: "HS256", expiresIn: REFRESH_TTL }
   );
@@ -57,6 +57,13 @@ function generateRefreshToken(user) {
 
 function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+function compareHashes(a, b) {
+  if (!a || !b || a.length !== b.length) return false;
+  const bufA = Buffer.from(a, "hex");
+  const bufB = Buffer.from(b, "hex");
+  return crypto.timingSafeEqual(bufA, bufB);
 }
 
 function setRefreshCookie(res, token) {
@@ -181,7 +188,7 @@ router.post("/refresh", async (req, res, next) => {
     }
 
     const user = await User.findById(payload.userId).select("+refreshTokenHash");
-    if (!user || user.refreshTokenHash !== hashToken(token)) {
+    if (!user || !compareHashes(user.refreshTokenHash, hashToken(token))) {
       clearRefreshCookie(res);
       throw new AppError(401, "Invalid refresh token");
     }
