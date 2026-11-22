@@ -13,4 +13,7 @@ const settlementSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Compound index for listing group settlements
+settlementSchema.index({ groupId: 1, createdAt: -1 });
+
 export default mongoose.models.Settlement || mongoose.model("Settlement", settlementSchema);

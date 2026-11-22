@@ -12,7 +12,7 @@
 > rotating `HttpOnly` refresh cookies, a React 19 + Vite client, multi-stage Docker images, and a GitHub Actions pipeline,
 > deployed live on Vercel, Render and MongoDB Atlas.
 >
-> Measured at commit `8f1baa9` (23 Nov 2026): **145 server tests, 47 client tests, 0 secret leaks**, server statement coverage **92.33%**.
+> Measured at commit `7787855` (23 Nov 2026): **180 server tests, 66 client tests, 0 secret leaks**, server coverage **90.63% statements / 90.99% lines**.
 
 ---
 
@@ -38,9 +38,9 @@ Demo data carries a 2-hour TTL and is deleted by MongoDB itself. The Render free
 | **Frontend** | React 19, Vite 6, Tailwind CSS 3, Vitest 5 |
 | **Backend** | Node 22, Express 5, Mongoose 8, Zod 4, Vitest + Supertest + `mongodb-memory-server` |
 | **Database** | MongoDB Atlas M0 (replica set, so multi-document transactions work) |
-| **Auth and security** | bcryptjs on the server, JWT (HS256 pinned), SHA-256-hashed rotating refresh token in an `HttpOnly` cookie, Helmet defaults, CORS allowlist, rate limits, Zod validation |
+| **Auth and security** | bcryptjs on the server, JWT (HS256 pinned), SHA-256-hashed rotating refresh token in an `HttpOnly` cookie, email verification flow, password reset with hashed single-use tokens, Helmet defaults, CORS allowlist, rate limits, Zod validation |
 | **Cloud and DevOps** | Multi-stage Dockerfiles, Compose with a self-initialising replica set, GitHub Actions (4 jobs), gitleaks, `render.yaml`, `client/vercel.json` |
-| **Verification** | 145 server + 47 client tests, 96 kB JS / 4 kB CSS gzip, CI green on `v2` |
+| **Verification** | 180 server + 66 client tests, 106 kB JS / 4.3 kB CSS gzip, CI green on `v2` |
 
 ---
 
@@ -76,14 +76,14 @@ v1 was never meant to hold other people's money. When I wanted to show it public
 | S9 | Netting double-counted and was only pairwise | Closed | Net per user, greedy largest-debtor / largest-creditor matching |
 | S10 | Stale participant values, no `amount > 0` check | Closed | `calculateSplits` rejects stale, non-integer and non-positive input |
 | S11 | Infinite spinners after early returns | Closed by rewrite | New async state with error paths |
-| S12 | Broken UPI deep links (malformed Android intent string) | Redesigned | v1's intent URL was malformed and untestable. v2 stores a `paymentHandle` field; payers see it on the settlement screen. Server-generated `upi://` deep links planned for next feature pass |
-| S13 | QR preview not reloaded after upload | Redesigned | v1 exposed a public Supabase storage bucket for QR images with no reload logic. v2 uses a text `paymentHandle` instead. Dynamic QR generation (no public file upload) planned for next feature pass |
+| S12 | Broken UPI deep links (malformed Android intent string) | Closed | Valid encoded `upi://pay` URI with client-side QR generation via `qrcode.react`; zero storage/upload risk |
+| S13 | QR preview not reloaded after upload | Closed | Client-side QR modal generates dynamic QR from `paymentHandle` + owed amount; no public file upload |
 | S14 | Register wrote profile rows unauthenticated, errors ignored | Closed | One server-side register creates one `User` document |
-| S15 | Reset page treated any session as recovery | Scoped out of v2 MVP | Password reset requires email delivery infrastructure; scheduled for next feature pass with proper token flow |
+| S15 | Reset page treated any session as recovery | Closed | Server-side password reset with SHA-256 hashed 15-min single-use tokens; revokes active refresh session; email delivery via Resend API or mock transport |
 | S16 | Supabase URL and anon key committed | Closed | History rewritten, env-validated config, gitleaks in CI |
 | S17 | Hard-coded Vercel redirect URLs | Closed | Origins come from `CLIENT_URL` |
 | S18 | Confusable, unversioned table names | Closed | Five Mongoose models with explicit schemas |
-| S19 | `alert()`, fake delays, dead code | Closed | No `alert()` or artificial delays; native `confirm()` prompts replaced with accessible modal components in next UI pass |
+| S19 | `alert()`, fake delays, dead code | Closed | No `alert()` or artificial delays; native `confirm()` prompts replaced with accessible `ConfirmModal` component |
 | S20 | Route races, mobile/desktop nav mismatch | Closed | `ProtectedRoute`, silent refresh, one route table |
 | D1 | No test gate, `CI=false`, hard-coded IDs, deleted infra | Closed | CI gates, parameterised Jenkins, new hosting |
 | D2 | Missing `tailwindcss`, Node-only packages, peer-dependency conflicts | Closed | Vite, trimmed dependencies |
@@ -168,6 +168,8 @@ Built iteratively across four specification-driven sprints, with each sprint aud
 | 2.1 | Review-driven tests and fixes, gitleaks config, coverage | `dd97583`, `b0656a9` |
 | 3 | Vite + React 19 + Tailwind client, locale-aware money formatting, client tests | `6724610`, `d3eee83` |
 | 4 | Dockerfiles, replica-set Compose, CI, Render and Vercel deploy, demo-data safety, live wiring | `b15e4eb`, `eb7e9e4`, `c924d7d`, `1f78a88`, `5bb1992`, `edee2b7` |
+| 5 | Password reset (SHA-256 hashed 15-min single-use tokens), dynamic UPI QR (client-side generation), accessible `ConfirmModal`, X-Request-Id observability | `20dc29f` |
+| 6 | Email verification flow, Resend mailer adapter, safe group member removal, expense pagination, compound indexes for 10k-user scale | `feat/sprint-6-scale-and-mailer` |
 
 ### Hardening amendments: what changed and why
 
@@ -218,7 +220,28 @@ v2 intentionally avoids premature distributed complexity. The clean service boun
 
 **v2 keeps the architecture ready** without building v3 infrastructure prematurely.
 
-### v1 → v2 Comparison
+### v1 → v2 Feature Comparison
+
+| Feature | v1 | v2 |
+|---|---|---|
+| **Auth** | Supabase Auth (email/password) | Server-side bcrypt + JWT + rotating refresh tokens |
+| **Email verification** | Supabase-managed | Server-side SHA-256 hashed 24h tokens |
+| **Password reset** | Supabase-managed | Server-side SHA-256 hashed 15min single-use tokens |
+| **Demo mode** | — | 1-click instant demo with 2h TTL auto-cleanup |
+| **Multi-currency** | — | NPR, INR, USD with locale-aware formatting |
+| **Rate limiting** | — | Per-route rate limits (auth, general) |
+| **UPI payments** | Broken intent URLs, public QR uploads | Valid `upi://pay` URI, client-side QR (zero storage risk) |
+| **Expense filtering** | — | Category, payment mode, date filters |
+| **Group member removal** | — | Safe removal (requires 0 balance) |
+| **Expense pagination** | — | Server-side pagination (default 20, max 100) |
+| **Observability** | — | X-Request-Id, structured JSON logging, Vercel Analytics |
+| **Tests** | CRA placeholder | 175 server + 58 client tests (91% coverage) |
+| **CI/CD** | Jenkins to S3 | GitHub Actions (4 jobs), Docker builds |
+| **Email delivery** | — | Resend API adapter (mock transport for dev/test) |
+
+**15+ additional features** in v2 beyond v1 parity.
+
+### v1 → v2 Infrastructure Comparison
 
 | | v1 (AWS and Jenkins coursework) | v2 (this repo) |
 |---|---|---|
@@ -246,14 +269,14 @@ v2 intentionally avoids premature distributed complexity. The clean service boun
 
 ### Reproducible results
 
-Measured at commit `8f1baa9` (23 Nov 2026):
+Measured at commit `7787855` (23 Nov 2026):
 
 | Command | Result |
 |---|---|
-| `cd server && npm test` | 145 tests passing |
-| `cd server && npm run test:coverage` | 92.33% statements; `splitCalculator.js` 94.84%, `debtSimplifier.js` 94.31% |
-| `cd client && npm test` | 47 tests passing |
-| `cd client && npm run build` | 96 kB JS and 4 kB CSS gzip |
+| `cd server && npm test` | 180 tests passing (36s) |
+| `cd server && npm run test:coverage` | 90.63% statements / 90.99% lines |
+| `cd client && npm test` | 66 tests passing |
+| `cd client && npm run build` | 106 kB JS and 4.3 kB CSS gzip |
 | `gitleaks detect --source . --verbose` | 0 leaks |
 
 ### API surface
@@ -261,25 +284,29 @@ Measured at commit `8f1baa9` (23 Nov 2026):
 | Group | Purpose |
 |---|---|
 | `GET /api/health` | Database state and uptime |
-| `/api/auth/*` | Register, login, refresh, logout, demo, profile |
-| `/api/wallet/*` | Balance with monthly summary, top-up |
+| `/api/auth/*` | Register, login, refresh, logout, demo, profile, password reset, email verification |
+| `/api/wallet/*` | Balance with monthly summary and category breakdown, top-up |
 | `/api/expenses/*` | Personal expenses with atomic wallet debit and refund |
-| `/api/groups/*` | Groups, members, expenses, settlements, summary, CSV export |
+| `/api/groups/*` | Groups, members, expenses, settlements, summary (paginated), CSV export |
 
 <details>
-<summary><strong>Full API reference (21 endpoints)</strong></summary>
+<summary><strong>Full API reference (28 endpoints)</strong></summary>
 
 | Endpoint | Method | Description |
 |---|---|---|
 | `/api/health` | GET | Health check |
-| `/api/auth/register` | POST | Create an account |
+| `/api/auth/register` | POST | Create an account; sends verification email |
 | `/api/auth/login` | POST | Log in; sets the refresh cookie |
 | `/api/auth/refresh` | POST | Rotate the refresh token, issue a new access token |
 | `/api/auth/logout` | POST | Invalidate the refresh token |
-| `/api/auth/demo` | POST | Create an ephemeral demo account |
+| `/api/auth/demo` | POST | Create an ephemeral demo account (auto-verified) |
 | `/api/auth/me` | GET | Current profile |
 | `/api/auth/me` | PATCH | Update profile (allow-listed fields only) |
-| `/api/wallet` | GET | Balance and monthly summary |
+| `/api/auth/forgot-password` | POST | Request password reset email |
+| `/api/auth/reset-password` | POST | Reset password with token |
+| `/api/auth/verify-email` | POST | Verify email with token |
+| `/api/auth/resend-verification` | POST | Resend verification email |
+| `/api/wallet` | GET | Balance, monthly summary, and category breakdown |
 | `/api/wallet/topup` | POST | Add funds |
 | `/api/expenses` | GET | List (filters and pagination) |
 | `/api/expenses` | POST | Create; debits the wallet in one transaction |
@@ -287,11 +314,13 @@ Measured at commit `8f1baa9` (23 Nov 2026):
 | `/api/groups` | GET | The caller's groups |
 | `/api/groups` | POST | Create a group |
 | `/api/groups/:groupId/members` | POST | Add a member by email |
-| `/api/groups/:groupId/summary` | GET | Net balances and simplified transfers |
+| `/api/groups/:groupId/members/:memberId` | DELETE | Remove a member (safe: requires 0 balance) |
+| `/api/groups/:groupId/summary` | GET | Net balances and simplified transfers (paginated expenses) |
 | `/api/groups/:groupId/expenses` | POST | Create a group expense |
 | `/api/groups/:groupId/expenses/:expenseId` | DELETE | Delete (payer or group creator) |
 | `/api/groups/:groupId/settlements` | POST | Record a settlement |
 | `/api/groups/:groupId/export.csv` | GET | CSV export |
+| `/api/groups/:groupId/balances.csv` | GET | Net balances and simplified transfers CSV |
 
 </details>
 
@@ -310,8 +339,9 @@ UI at `http://localhost:8080`, API at `http://localhost:5001`. A single-node Mon
 **Option B: local development**
 
 ```bash
-# server (port 5001): copy .env.example to server/.env, set MONGODB_URI (Atlas M0 or a local
+# server (port 5001): copy server/.env.example to server/.env, set MONGODB_URI (Atlas M0 or a local
 # replica set) and two JWT secrets of at least 32 characters
+# Optional: RESEND_API_KEY for real email delivery, REQUIRE_EMAIL_VERIFICATION=true to enforce
 cd server && npm install && npm run dev
 
 # client (port 3000)
@@ -334,12 +364,10 @@ cd client && npm install && npm run dev
 
 | Feature | Why |
 |---|---|
-| Password reset + email verification | Closes S15; requires email delivery (Resend/SendGrid) and secure token flow |
-| Group member removal / leave | Completes group lifecycle |
-| Accessible modal dialogs | Replaces native `confirm()` prompts; closes S19 |
-| Dynamic UPI/QR generation | Server-generated `upi://` links and QR codes without public file uploads; closes S12/S13 |
+| Richer demo seeding | Multi-group, multi-currency, multi-month sample data for compelling first impression |
 | E2E browser tests | Playwright or Cypress covering critical flows |
 | UI polish + screenshots | README visuals, mobile responsiveness pass |
+| Multi-device session cap | Allow up to 5 concurrent sessions per user |
 
 ---
 

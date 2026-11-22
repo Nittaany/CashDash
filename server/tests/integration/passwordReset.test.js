@@ -1,11 +1,10 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import request from "supertest";
 import crypto from "crypto";
+import "./setup.js";
 import { app } from "../../src/app.js";
 import User from "../../src/models/User.js";
 import { mockTransport } from "../../src/services/mailer.js";
-
-// Setup is handled by setup.js which runs beforeAll/afterAll/beforeEach hooks
 
 describe("Password Reset Flow", () => {
   beforeEach(() => {
@@ -23,6 +22,8 @@ describe("Password Reset Flow", () => {
           password: "Password123"
         });
 
+      mockTransport.clear(); // Clear the registration verification email
+
       const res = await request(app)
         .post("/api/auth/forgot-password")
         .send({ email: "test@example.com" });
@@ -30,9 +31,10 @@ describe("Password Reset Flow", () => {
       expect(res.status).toBe(200);
       expect(res.body.message).toContain("If an account exists");
       
-      // Verify email was "sent"
+      // Verify password reset email was "sent"
       expect(mockTransport.sentEmails.length).toBe(1);
       expect(mockTransport.sentEmails[0].to).toBe("test@example.com");
+      expect(mockTransport.sentEmails[0].subject).toContain("Password Reset");
     });
 
     it("returns generic 200 for non-existent user (anti-enumeration)", async () => {
@@ -85,13 +87,16 @@ describe("Password Reset Flow", () => {
           password: "OldPassword123"
         });
 
+      mockTransport.clear(); // Clear the verification email
+
       // Trigger forgot password to get a token
       await request(app)
         .post("/api/auth/forgot-password")
         .send({ email: "reset@example.com" });
 
-      // Extract token from mock email
-      const emailHtml = mockTransport.sentEmails[0]?.html;
+      // Extract token from password reset email (the only email now)
+      const resetEmail = mockTransport.sentEmails.find(e => e.subject.includes("Password Reset"));
+      const emailHtml = resetEmail?.html;
       const tokenMatch = emailHtml?.match(/token=([a-f0-9]+)/);
       return tokenMatch ? tokenMatch[1] : null;
     }

@@ -13,4 +13,8 @@ const personalExpenseSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Compound indexes for 10k-user scalability
+personalExpenseSchema.index({ userId: 1, date: -1 }); // List expenses by date
+personalExpenseSchema.index({ userId: 1, category: 1 }); // Category breakdown queries
+
 export default mongoose.models.PersonalExpense || mongoose.model("PersonalExpense", personalExpenseSchema);

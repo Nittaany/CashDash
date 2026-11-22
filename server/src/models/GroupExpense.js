@@ -23,4 +23,7 @@ const groupExpenseSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Compound index for paginated listing of group expenses
+groupExpenseSchema.index({ groupId: 1, createdAt: -1 });
+
 export default mongoose.models.GroupExpense || mongoose.model("GroupExpense", groupExpenseSchema);

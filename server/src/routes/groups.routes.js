@@ -55,6 +55,16 @@ const expenseIdParamsSchema = z.strictObject({
   expenseId: objectIdSchema
 });
 
+const memberIdParamsSchema = z.strictObject({
+  groupId: objectIdSchema,
+  memberId: objectIdSchema
+});
+
+const paginationQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20)
+});
+
 // Helper: verify user is group member
 async function verifyGroupMember(groupId, userId) {
   if (!mongoose.Types.ObjectId.isValid(groupId)) {
@@ -205,21 +215,103 @@ router.post("/:groupId/members", authenticate, validate({ body: addMemberSchema,
   }
 });
 
-// GET /api/groups/:groupId/summary - Get group summary with simplified debts
-router.get("/:groupId/summary", authenticate, validate({ params: groupIdParamsSchema }), async (req, res, next) => {
+// DELETE /api/groups/:groupId/members/:memberId - Remove member from group (safe removal)
+router.delete("/:groupId/members/:memberId", authenticate, validate({ params: memberIdParamsSchema }), async (req, res, next) => {
   try {
-    const { groupId } = req.validated.params;
+    const { groupId, memberId } = req.validated.params;
     const group = await verifyGroupMember(groupId, req.user.userId);
-    await group.populate("members", "_id name email paymentHandle");
 
+    // Only group creator can remove others; anyone can leave (remove themselves)
+    const isCreator = group.createdBy.toString() === req.user.userId;
+    const isSelf = memberId === req.user.userId;
+
+    if (!isCreator && !isSelf) {
+      throw new AppError(403, "Only the group creator can remove other members");
+    }
+
+    // Creator cannot leave if they are the only member
+    if (isSelf && isCreator && group.members.length === 1) {
+      throw new AppError(400, "Cannot leave group as the only member. Delete the group instead.");
+    }
+
+    // Check if member exists in group
+    if (!group.members.some((m) => m.toString() === memberId)) {
+      throw new AppError(404, "Member not found in group");
+    }
+
+    // Load expenses and settlements to check balance
     const [expenses, settlements] = await Promise.all([
-      GroupExpense.find({ groupId }).populate("payerId", "_id name email"),
+      GroupExpense.find({ groupId }),
       Settlement.find({ groupId })
     ]);
 
-    // Compute simplified debts
-    const expensesForCalc = expenses.map((e) => ({
-      payerId: e.payerId._id.toString(),
+    // Calculate net balance for the member being removed
+    let netBalance = 0;
+    for (const expense of expenses) {
+      const payerId = expense.payerId.toString();
+      for (const split of expense.splits) {
+        const splitUserId = split.userId.toString();
+        if (splitUserId === memberId && payerId !== memberId) {
+          // Member owes money
+          netBalance -= split.amountMinor;
+        }
+        if (payerId === memberId && splitUserId !== memberId) {
+          // Member is owed money
+          netBalance += split.amountMinor;
+        }
+      }
+    }
+    for (const settlement of settlements) {
+      if (settlement.fromUserId.toString() === memberId) {
+        netBalance += settlement.amountMinor;
+      }
+      if (settlement.toUserId.toString() === memberId) {
+        netBalance -= settlement.amountMinor;
+      }
+    }
+
+    // Cannot remove member with non-zero balance
+    if (netBalance !== 0) {
+      const direction = netBalance > 0 ? "is owed" : "owes";
+      const amount = Math.abs(netBalance);
+      throw new AppError(409, `Cannot remove member: they ${direction} ${amount / 100} ${group.currency}. Settle all debts first.`);
+    }
+
+    // Remove member
+    await Group.findByIdAndUpdate(groupId, { $pull: { members: memberId } });
+
+    const updatedGroup = await Group.findById(groupId).populate("members", "_id name email paymentHandle");
+    res.json({ group: updatedGroup, message: "Member removed successfully" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/groups/:groupId/summary - Get group summary with simplified debts
+router.get("/:groupId/summary", authenticate, validate({ params: groupIdParamsSchema, query: paginationQuerySchema }), async (req, res, next) => {
+  try {
+    const { groupId } = req.validated.params;
+    const { page, limit } = req.validated.query;
+    const group = await verifyGroupMember(groupId, req.user.userId);
+    await group.populate("members", "_id name email paymentHandle");
+
+    // Get total count for pagination
+    const totalExpenses = await GroupExpense.countDocuments({ groupId });
+
+    // Always load ALL expenses and settlements for balance calculation (critical for accuracy)
+    const [allExpenses, settlements, paginatedExpenses] = await Promise.all([
+      GroupExpense.find({ groupId }).select("payerId amountMinor splits"),
+      Settlement.find({ groupId }),
+      GroupExpense.find({ groupId })
+        .populate("payerId", "_id name email")
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+    ]);
+
+    // Compute simplified debts from ALL expenses (not just paginated)
+    const expensesForCalc = allExpenses.map((e) => ({
+      payerId: e.payerId.toString(),
       amountMinor: e.amountMinor,
       splits: e.splits.map((s) => ({
         userId: s.userId.toString(),
@@ -258,10 +350,16 @@ router.get("/:groupId/summary", authenticate, validate({ params: groupIdParamsSc
 
     res.json({
       group,
-      expenses,
+      expenses: paginatedExpenses,
       settlements,
       netBalances,
-      simplifiedTransfers
+      simplifiedTransfers,
+      pagination: {
+        page,
+        limit,
+        totalExpenses,
+        totalPages: Math.ceil(totalExpenses / limit)
+      }
     });
   } catch (error) {
     next(error);
@@ -474,6 +572,99 @@ router.get("/:groupId/export.csv", authenticate, validate({ params: groupIdParam
 
     const csv = rows.join("\n");
     const filename = `${group.name.replace(/[^a-zA-Z0-9]/g, "_")}_expenses.csv`;
+
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    res.send(csv);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/groups/:groupId/balances.csv - Export balances and simplified transfers as CSV
+router.get("/:groupId/balances.csv", authenticate, validate({ params: groupIdParamsSchema }), async (req, res, next) => {
+  try {
+    const { groupId } = req.validated.params;
+    const group = await verifyGroupMember(groupId, req.user.userId);
+    await group.populate("members", "_id name email");
+
+    const [expenses, settlements] = await Promise.all([
+      GroupExpense.find({ groupId }),
+      Settlement.find({ groupId })
+    ]);
+
+    // Build member lookup
+    const memberMap = new Map();
+    for (const m of group.members) {
+      memberMap.set(m._id.toString(), m.name);
+    }
+
+    // Compute balances
+    const expensesForCalc = expenses.map((e) => ({
+      payerId: e.payerId.toString(),
+      amountMinor: e.amountMinor,
+      splits: e.splits.map((s) => ({
+        userId: s.userId.toString(),
+        amountMinor: s.amountMinor
+      }))
+    }));
+
+    const settlementsForCalc = settlements.map((s) => ({
+      fromUserId: s.fromUserId.toString(),
+      toUserId: s.toUserId.toString(),
+      amountMinor: s.amountMinor
+    }));
+
+    // Net balances per user
+    const netBalances = {};
+    for (const member of group.members) {
+      netBalances[member._id.toString()] = 0;
+    }
+    for (const expense of expensesForCalc) {
+      for (const split of expense.splits) {
+        if (split.userId !== expense.payerId) {
+          netBalances[split.userId] = (netBalances[split.userId] ?? 0) - split.amountMinor;
+          netBalances[expense.payerId] = (netBalances[expense.payerId] ?? 0) + split.amountMinor;
+        }
+      }
+    }
+    for (const settlement of settlementsForCalc) {
+      netBalances[settlement.fromUserId] = (netBalances[settlement.fromUserId] ?? 0) + settlement.amountMinor;
+      netBalances[settlement.toUserId] = (netBalances[settlement.toUserId] ?? 0) - settlement.amountMinor;
+    }
+
+    // Simplified transfers
+    const simplifiedTransfers = simplifyDebts({
+      expenses: expensesForCalc,
+      settlements: settlementsForCalc
+    });
+
+    // Build CSV
+    const rows = [];
+    
+    // Section 1: Net Balances
+    rows.push("Net Balances");
+    rows.push(["Member", "Balance (" + group.currency + ")"].map(sanitizeCSVCell).join(","));
+    for (const [userId, balance] of Object.entries(netBalances)) {
+      const name = memberMap.get(userId) ?? "Unknown";
+      const balanceStr = (balance / 100).toFixed(2);
+      rows.push([name, balanceStr].map(sanitizeCSVCell).join(","));
+    }
+    
+    rows.push(""); // Empty line separator
+    
+    // Section 2: Simplified Transfers
+    rows.push("Simplified Transfers");
+    rows.push(["From", "To", "Amount (" + group.currency + ")"].map(sanitizeCSVCell).join(","));
+    for (const transfer of simplifiedTransfers) {
+      const fromName = memberMap.get(transfer.fromUserId) ?? "Unknown";
+      const toName = memberMap.get(transfer.toUserId) ?? "Unknown";
+      const amountStr = (transfer.amountMinor / 100).toFixed(2);
+      rows.push([fromName, toName, amountStr].map(sanitizeCSVCell).join(","));
+    }
+
+    const csv = rows.join("\n");
+    const filename = `${group.name.replace(/[^a-zA-Z0-9]/g, "_")}_balances.csv`;
 
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
