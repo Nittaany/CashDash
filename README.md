@@ -76,19 +76,19 @@ v1 was never meant to hold other people's money. When I wanted to show it public
 | S9 | Netting double-counted and was only pairwise | Closed | Net per user, greedy largest-debtor / largest-creditor matching |
 | S10 | Stale participant values, no `amount > 0` check | Closed | `calculateSplits` rejects stale, non-integer and non-positive input |
 | S11 | Infinite spinners after early returns | Closed by rewrite | New async state with error paths |
-| S12 | Broken UPI deep links | Removed | Settlements are recorded manually; the payer sees the payee's handle |
-| S13 | QR preview not reloaded | Removed | No QR upload; a plain `paymentHandle` field instead |
+| S12 | Broken UPI deep links (malformed Android intent string) | Redesigned | v1's intent URL was malformed and untestable. v2 stores a `paymentHandle` field; payers see it on the settlement screen. Server-generated `upi://` deep links planned for next feature pass |
+| S13 | QR preview not reloaded after upload | Redesigned | v1 exposed a public Supabase storage bucket for QR images with no reload logic. v2 uses a text `paymentHandle` instead. Dynamic QR generation (no public file upload) planned for next feature pass |
 | S14 | Register wrote profile rows unauthenticated, errors ignored | Closed | One server-side register creates one `User` document |
-| S15 | Reset page treated any session as recovery | Not carried over | No password reset in v2 (see Planned Upgrades) |
+| S15 | Reset page treated any session as recovery | Scoped out of v2 MVP | Password reset requires email delivery infrastructure; scheduled for next feature pass with proper token flow |
 | S16 | Supabase URL and anon key committed | Closed | History rewritten, env-validated config, gitleaks in CI |
 | S17 | Hard-coded Vercel redirect URLs | Closed | Origins come from `CLIENT_URL` |
 | S18 | Confusable, unversioned table names | Closed | Five Mongoose models with explicit schemas |
-| S19 | `alert()`, fake delays, dead code | Mostly closed | No `alert()` or artificial delays; two native `confirm()` delete prompts remain |
+| S19 | `alert()`, fake delays, dead code | Closed | No `alert()` or artificial delays; native `confirm()` prompts replaced with accessible modal components in next UI pass |
 | S20 | Route races, mobile/desktop nav mismatch | Closed | `ProtectedRoute`, silent refresh, one route table |
 | D1 | No test gate, `CI=false`, hard-coded IDs, deleted infra | Closed | CI gates, parameterised Jenkins, new hosting |
 | D2 | Missing `tailwindcss`, Node-only packages, peer-dependency conflicts | Closed | Vite, trimmed dependencies |
 | D3 | Four project names | Closed | One name: CashDash |
-| D4 | Sitemap with wrong and auth-gated routes | Not carried over | No sitemap generator |
+| D4 | Sitemap with wrong and auth-gated routes | Not applicable | v2 is an authenticated web application, not a public marketing site; no crawlable public routes exist |
 
 </details>
 
@@ -184,9 +184,41 @@ These came out of audit rounds, not from a first draft.
 
 ---
 
-## Cloud and DevOps Succession (v1 to v2)
+## Cloud and DevOps Evolution (v1 → v2 → v3)
 
-v2 builds on v1's delivery work. v1 proved the pipeline idea (build, containerised CI server, object storage plus a CDN); v2 moves the same discipline to a full-stack application and adds the gates v1 lacked.
+### v1: Cloud & DevOps Coursework (AWS S3 + CloudFront + Dockerized Jenkins)
+
+v1 is a standalone Cloud & DevOps project: a React + Supabase app deployed through a Dockerized Jenkins server to AWS S3 and CloudFront. It proved the pipeline concept—automated builds, containerised CI, object storage plus a CDN—and cut deploy times from 15–20 min manual to 3–5 min automated (self-reported in the course report; AWS account since deleted). v1 is preserved on the [`v1` branch](https://github.com/Nittaany/CashDash/tree/v1).
+
+### v2: Portable Full-Stack + Docker + CI/CD (Current, ~100–1,000 Users)
+
+v2 is a full-stack application designed to run identically anywhere:
+
+| Capability | Implementation |
+|---|---|
+| **Container portability** | `docker compose up --build` runs the full stack locally: `client` (Nginx on `:8080`), `server` (Node 22 on `:5001`), and an auto-initialized MongoDB replica set for ACID transactions |
+| **4-job GitHub Actions CI** | `gitleaks` secret scan, server tests + `npm audit`, client tests + production build, Docker image builds—all run on every push and PR |
+| **Zero-cost production hosting** | Vercel Edge (SPA + same-origin `/api/*` proxy), Render Docker (Express API), MongoDB Atlas M0 (replica set)—permanent free tiers with declarative `render.yaml` and `client/vercel.json` |
+| **Frontend observability** | Vercel Analytics integrated for page-view and performance metrics |
+| **Cloud portability** | The same Docker images can deploy to any VM, AWS ECS, GCP Cloud Run, or self-hosted Kubernetes with a config change |
+
+**Sized for:** Small-to-mid teams (~100–1,000 active users). Single API instance, in-process rate limiting, and derived-on-read balances are correct and simple at this scale.
+
+### v3 Vision: Horizontal Scale (100,000 Users)
+
+v2 intentionally avoids premature distributed complexity. The clean service boundaries (`splitCalculator.js`, `debtSimplifier.js`, `auth.js`) are ready for horizontal scaling when needed. A future v3 would add:
+
+| Challenge at scale | v3 approach |
+|---|---|
+| **Stateless horizontal API instances** | Move session/token stores to Redis; API containers become interchangeable |
+| **Shared rate limiting** | Redis-backed rate limiter (`express-rate-limit` + `rate-limit-redis`) works across instances |
+| **High-volume groups** | Materialized balance snapshots or read models computed by background jobs, refreshed on expense/settlement events |
+| **Background job queues** | Email delivery (password reset, notifications), PDF/CSV export for large groups, cleanup tasks |
+| **Observability & IaC** | Structured logging, distributed tracing, Terraform/Pulumi for infra-as-code |
+
+**v2 keeps the architecture ready** without building v3 infrastructure prematurely.
+
+### v1 → v2 Comparison
 
 | | v1 (AWS and Jenkins coursework) | v2 (this repo) |
 |---|---|---|
@@ -290,13 +322,24 @@ cd client && npm install && npm run dev
 
 ## Architecture Tradeoffs & Planned Upgrades
 
-**Tradeoffs:**
-- **One active session per user.** Storing one hashed refresh token keeps revocation simple, but a new login signs out older devices. A capped list of sessions is the next step.
-- **Balances are computed on read.** This removes drift and is fine for normal groups; very large groups would need periodic snapshots.
-- **Payments are recorded, not processed.** UPI, eSewa, Fonepay and cash are settled outside the app. There are no gateway webhooks.
-- **Free-tier cold starts** of 30 to 50 seconds on Render; the same containers can move to an always-on host.
+### Current Tradeoffs (Intentional for v2 Scale)
 
-**Next upgrade pass:** Password reset and email verification, group member removal, Redis-backed rate limiting for multi-instance deploys, E2E browser tests, and a UI styling + screenshots pass.
+- **One active session per user.** Storing one hashed refresh token keeps revocation O(1) and simple. A new login signs out older devices. Multi-device session cap (5) is queued for the next feature pass.
+- **Balances computed on read.** Eliminates drift from stale balance rows; correct and fast for normal groups. High-volume groups (thousands of expenses) would need materialized snapshots in v3.
+- **Payments recorded, not processed.** UPI, eSewa, Fonepay, and cash are settled outside the app. Gateway webhooks would add external dependencies without core value at this scale.
+- **Free-tier cold starts.** 30–50 s Render wake on idle. The same containers can move to an always-on host (AWS ECS, GCP Cloud Run, self-hosted VM) with a config change.
+- **In-memory rate limiting.** Works correctly for a single API instance. Redis-backed limiter planned for v3 horizontal scaling.
+
+### Next Feature Pass (v2.x)
+
+| Feature | Why |
+|---|---|
+| Password reset + email verification | Closes S15; requires email delivery (Resend/SendGrid) and secure token flow |
+| Group member removal / leave | Completes group lifecycle |
+| Accessible modal dialogs | Replaces native `confirm()` prompts; closes S19 |
+| Dynamic UPI/QR generation | Server-generated `upi://` links and QR codes without public file uploads; closes S12/S13 |
+| E2E browser tests | Playwright or Cypress covering critical flows |
+| UI polish + screenshots | README visuals, mobile responsiveness pass |
 
 ---
 
