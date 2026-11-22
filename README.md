@@ -1,127 +1,103 @@
-# CashDash — Full-Stack Expense Ledger & Group Debt Settlement
+# CashDash
+
+**Full-Stack Expense Ledger & Group Debt Settlement**
 
 [![CI](https://github.com/Nittaany/CashDash/actions/workflows/ci.yml/badge.svg?branch=v2)](https://github.com/Nittaany/CashDash/actions/workflows/ci.yml)
 ![Node 22](https://img.shields.io/badge/node-22-brightgreen)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Live Demo](https://img.shields.io/badge/demo-live-success)](https://cash-dash-one.vercel.app)
 
-Personal wallet tracking with multi-currency (`NPR`/`INR`/`USD`) group expense splitting. Integer minor-unit arithmetic eliminates float drift; MongoDB ACID transactions ensure consistency; greedy min-cash-flow algorithm simplifies settlements. **192 automated tests** (145 server + 47 client), ephemeral 2-hour TTL instant demo, Docker Compose local stack, and CI/CD to Vercel + Render.
+> **TL;DR** — Personal wallet + multi-currency group expense splitting (NPR / INR / USD). Integer minor-unit arithmetic eliminates float drift; MongoDB ACID transactions guarantee consistency; greedy min-cash-flow algorithm simplifies settlements. 192 tests (92% coverage), ephemeral 2-hour TTL demo accounts, Docker Compose local stack, CI/CD to Vercel + Render.
 
 ---
 
-## 🚀 Live Demo
+## Live Demo
 
-**[https://cash-dash-one.vercel.app](https://cash-dash-one.vercel.app)**
+**https://cash-dash-one.vercel.app**
 
-Click **"Try Instant Demo (No Signup)"** to get an isolated sandbox with sample data (a "Pokhara Weekend Trip" group with teammates Aarav and Priya). Demo accounts auto-expire after 2 hours via MongoDB TTL indexes.
+Click **"Try Instant Demo (No Signup)"** to get an isolated sandbox with sample data—a "Pokhara Weekend Trip" group with teammates Aarav and Priya. Demo accounts auto-expire after 2 hours via MongoDB TTL indexes.
 
-> **Note:** The free-tier Render backend sleeps after 15 minutes of inactivity. First request may take 30–50 seconds to wake.
+*Free-tier Render backend sleeps after 15 min idle. First request may take 30–50 s to wake.*
 
 ---
 
-## 📋 At a Glance
+## At a Glance
 
-| Aspect | Details |
-|--------|---------|
+| | |
+|---|---|
 | **Live App** | [cash-dash-one.vercel.app](https://cash-dash-one.vercel.app) |
-| **Author** | Satyam Chaudhary |
-| **Frontend** | Vite 6 + React 19 + Tailwind CSS 3 + Vitest |
-| **Backend** | Node.js 22 + Express 5 + Mongoose 8 + Zod 4 + Vitest/Supertest |
-| **Database** | MongoDB Atlas M0 (Replica Set for ACID transactions) |
-| **Auth & Security** | JWT access (15m) + `jti` SHA-256 refresh rotation (7d) + `crypto.timingSafeEqual` + `SameSite=lax` HttpOnly cookie via Vercel same-origin `/api` proxy |
-| **DevOps & CI** | GitHub Actions + Multi-stage Docker + Replica-Set Compose + Parameterized Jenkins/AWS reference |
-| **Test Coverage** | Server: 145 tests, 92% statement coverage · Client: 47 tests · gitleaks secret scan |
-| **Bundle Size** | JS: 95 KB gzip · CSS: 4 KB gzip |
+| **Frontend** | Vite 6 · React 19 · Tailwind CSS 3 · Vitest |
+| **Backend** | Node.js 22 · Express 5 · Mongoose 8 · Zod 4 |
+| **Database** | MongoDB Atlas M0 Replica Set |
+| **Auth** | JWT access (15m) + `jti` SHA-256 refresh rotation (7d) + `crypto.timingSafeEqual` |
+| **DevOps** | GitHub Actions · Multi-stage Docker · Replica-Set Compose · Jenkins/AWS reference |
 
 ---
 
-## 🏗️ System Architecture
+## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                              PRODUCTION FLOW                                 │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  Browser ──► Vercel Edge CDN ──► Render Docker Container ──► MongoDB Atlas │
-│              (React SPA +         (Express API, Helmet,      M0 Replica Set │
-│               /api/* rewrite)      Rate Limiter, Zod)        (ACID + TTL)   │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+Browser → Vercel CDN (React SPA, /api/* rewrite) → Render (Express, Helmet, Zod) → MongoDB Atlas
 ```
 
-### Directory Structure
-
-| Path | Description |
-|------|-------------|
-| `client/` | Vite + React 19 + Tailwind frontend |
-| `server/` | Express API with Mongoose models, Zod validation |
+| Path | Purpose |
+|------|---------|
+| `client/` | Vite + React frontend |
+| `server/` | Express API, Mongoose models, Zod validation |
 | `server/src/services/` | `splitCalculator.js`, `debtSimplifier.js`, `demoSeed.js` |
-| `infra/jenkins/` | `Dockerfile.jenkins` + `Jenkinsfile` (AWS S3/CloudFront reference) |
+| `infra/jenkins/` | `Dockerfile.jenkins`, `Jenkinsfile` (AWS S3/CloudFront reference) |
 | `docker-compose.yml` | Full local stack with MongoDB replica set |
-| `render.yaml` | Render Blueprint for API deployment |
-| `client/vercel.json` | Vercel rewrites (API proxy + SPA fallback) |
-| `.github/workflows/ci.yml` | GitHub Actions: secret-scan, server-test, client-test-build, docker-build |
 
 ---
 
-## ⚙️ Engineering Design & Financial Guarantees
+## Engineering Design
 
-### Integer Minor-Unit Accounting
+**Integer Minor-Unit Accounting** — Amounts stored as integers (paisa/cents). Deterministic penny-remainder distribution in `splitCalculator.js`; locale-aware formatting (`en-IN` for NPR/INR, `en-US` for USD).
 
-All amounts stored as integers (paisa/paise/cents). `splitCalculator.js` uses deterministic penny-remainder distribution:
+**ACID Transactions** — Personal expense create/delete atomically updates wallet balance. Group settlements bump a `settlementVersion` counter inside transactions to reject concurrent duplicates.
 
-```javascript
-// EQUAL split: distribute remainder to first N participants
-const base = Math.floor(amountMinor / n);
-const remainder = amountMinor % n;
-splits[i] = base + (i < remainder ? 1 : 0);
-```
+**Derived Balances** — Group debts computed on-read from immutable expenses + settlements via `debtSimplifier.js`. No stale balance drift when expenses are deleted.
 
-Locale-aware formatting: `en-IN` for NPR/INR (lakh grouping), `en-US` for USD.
+**Single Active Refresh Session** — Login rotates `jti`, hashes with SHA-256, compares via `crypto.timingSafeEqual`, invalidates prior token.
 
-### ACID Transactions & Concurrency Control
+**Security** — Non-enumerating group invites, RFC 4180 CSV export with formula-injection neutralization, rate limiting (10 auth / 15 min), gitleaks CI gate.
 
-Personal expense create/delete atomically updates wallet balance inside `session.withTransaction()`. Group settlements:
-1. Load expenses + existing settlements within transaction
-2. Compute pairwise outstanding debt
-3. Reject if amount exceeds debt
-4. Bump `settlementVersion` counter on Group document (forces write-conflict on concurrent duplicates)
-5. Create settlement
-
-### Derived Balances & Min-Cash-Flow Simplification
-
-Group debts computed dynamically from immutable expenses + settlements via `debtSimplifier.js`. No stale balance drift when expenses are deleted. Greedy algorithm sorts debtors/creditors by amount, pairs largest debtor with largest creditor, minimizing transaction count.
-
-### Auth & Session Model
-
-Each user has **one active refresh session**. Login or refresh:
-1. Generates new `jti` via `crypto.randomUUID()`
-2. Hashes with SHA-256
-3. Compares via `crypto.timingSafeEqual` (timing-attack resistant)
-4. Invalidates prior token by overwriting hash
-
-Cookies: `SameSite=lax`, `HttpOnly`, scoped to `/api/auth`, proxied same-origin via Vercel.
-
-### Security Measures
-
-- **Non-enumerating responses**: Group invite returns generic "Invitation sent" whether email exists or not
-- **CSV export**: RFC 4180 compliant with formula-injection neutralization (`=`, `+`, `-`, `@`, `\t`, `\r` prefixed with `'`)
-- **Rate limiting**: 10 auth attempts / 15 min, 5 demo logins / min
-- **gitleaks CI gate**: Blocks commits with secrets
-
-### Isolated Ephemeral Demo Accounts
-
-Instant Demo provisions an isolated user + sample group with **2-hour MongoDB TTL** (`expiresAt` index). The `expiryFor(user)` helper applies TTL exclusively to demo-owned records (verified by automated tests so real users' data never expires).
+**Ephemeral Demo** — 2-hour MongoDB TTL on demo-owned records via `expiryFor(user)` helper (verified by tests so real data never expires).
 
 ---
 
-## 📡 API Surface
+## Verification & Benchmarks
+
+| Metric | Value |
+|--------|-------|
+| Server tests | 145 passed, 0 skipped |
+| Server coverage | 92.33% statements, 92.73% lines |
+| `splitCalculator.js` | 94.84% stmt, 93.90% lines |
+| `debtSimplifier.js` | 94.31% stmt, 95.77% lines |
+| Client tests | 47 passed |
+| Production bundle | JS 95 KB gzip, CSS 4 KB gzip |
+| Secret scan | gitleaks: 0 leaks |
+
+---
+
+## API
+
+| Route Group | Description |
+|-------------|-------------|
+| `GET /api/health` | Health check |
+| `/api/auth/*` | Register, login, refresh, logout, demo, profile |
+| `/api/wallet/*` | Balance, top-up |
+| `/api/expenses/*` | Personal expenses (CRUD, wallet debit/refund) |
+| `/api/groups/*` | Groups, members, expenses, settlements, CSV export |
+
+<details>
+<summary><strong>View Full API Reference (21 Endpoints)</strong></summary>
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
 | `/api/health` | GET | Health check (DB status, uptime) |
 | `/api/auth/register` | POST | Create account |
-| `/api/auth/login` | POST | Login (returns access token, sets refresh cookie) |
+| `/api/auth/login` | POST | Login |
 | `/api/auth/refresh` | POST | Rotate refresh token |
 | `/api/auth/logout` | POST | Clear refresh token |
 | `/api/auth/demo` | POST | Create ephemeral demo account |
@@ -129,121 +105,163 @@ Instant Demo provisions an isolated user + sample group with **2-hour MongoDB TT
 | `/api/auth/me` | PATCH | Update profile |
 | `/api/wallet` | GET | Get wallet balance |
 | `/api/wallet/topup` | POST | Add funds to wallet |
-| `/api/expenses` | GET | List personal expenses (paginated, filterable) |
-| `/api/expenses` | POST | Create expense (deducts from wallet) |
-| `/api/expenses/:id` | DELETE | Delete expense (refunds to wallet) |
+| `/api/expenses` | GET | List personal expenses |
+| `/api/expenses` | POST | Create expense |
+| `/api/expenses/:id` | DELETE | Delete expense |
 | `/api/groups` | GET | List user's groups |
 | `/api/groups` | POST | Create group |
-| `/api/groups/:groupId/members` | POST | Add member to group |
-| `/api/groups/:groupId/summary` | GET | Group summary with simplified debts |
+| `/api/groups/:groupId/members` | POST | Add member |
+| `/api/groups/:groupId/summary` | GET | Summary with simplified debts |
 | `/api/groups/:groupId/expenses` | POST | Create group expense |
 | `/api/groups/:groupId/expenses/:expenseId` | DELETE | Delete group expense |
 | `/api/groups/:groupId/settlements` | POST | Record settlement |
-| `/api/groups/:groupId/export.csv` | GET | Export expenses as CSV |
+| `/api/groups/:groupId/export.csv` | GET | Export as CSV |
+
+</details>
 
 ---
 
-## 📜 Legacy v1 Architecture & Engineering Postmortem
+## Legacy v1 & Engineering Postmortem
 
-CashDash evolved from its November 2025 college release (`v1` branch) into the current `v2` architecture.
+CashDash evolved from its November 2025 college release (`v1` branch) to `v2`.
 
-### Original v1 Architecture
+### v1 Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           v1 ARCHITECTURE (Nov 2025)                         │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  Browser ──► React 19 (CRA 5) ──► Supabase JS Client ──► Postgres          │
-│              CI=false build        (Auth + 6 tables +     (unversioned,     │
-│                                     update_balance RPC)    no migrations)   │
-│                                                                             │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                           v1 CI/CD PIPELINE                                  │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                             │
-│  GitHub ──► Jenkins Container ──► npm install ──► CI=false ──► S3 sync     │
-│             (Docker + Node +       --legacy-peer    npm run     --delete    │
-│              AWS CLI v2)            -deps            build                   │
-│                                                                    │        │
-│                                                                    ▼        │
-│                                                          CloudFront CDN     │
-│                                                          (/* invalidation)  │
-│                                                                             │
-└─────────────────────────────────────────────────────────────────────────────┘
+Browser → React 19 (CRA 5, CI=false build) → Supabase JS Client → Postgres (6 unversioned tables)
 ```
 
-### AWS & DevOps Engineering Wins (Preserved in `infra/jenkins/`)
+### v1 CI/CD Pipeline
 
-1. **Containerized Jenkins**: `jenkins/jenkins:lts` with Node.js 22, AWS CLI v2, persistent `/var/jenkins_home` volume (~250–400 MB RAM idle, up to 800 MB peak)
+```
+GitHub → Jenkins Container (NodeSource Node, Python3 AWS CLI) → npm install --legacy-peer-deps → S3 sync → CloudFront invalidation
+```
 
-2. **S3 `AccessControlListNotSupported` Fix**: Resolved by removing `--acl public-read` and applying read-only `s3:GetObject` bucket policy (caused by S3 Block Public Access defaults)
+### DevOps Wins Preserved
 
-3. **Measured DevOps Impact**:
-   - Deploy time: **15–20 min manual → 3–5 min automated** (70–80% faster)
-   - Page load: **2.5–3.2 s (S3 alone) → 1.1–1.6 s (CloudFront edge caching)**
+- **Containerized Jenkins:** `jenkins/jenkins:lts` with persistent `/var/jenkins_home` (~250–400 MB RAM idle)
+- **S3 ACL Fix:** Removed `--acl public-read`, applied `s3:GetObject` bucket policy
+- **Measured Impact:**
+  - Deploy time: 15–20 min manual → 3–5 min automated
+  - Page load: 2.5–3.2 s (S3) → 1.1–1.6 s (CloudFront)
 
-### v1 Flaws Diagnosed & Fixed in v2
+*Note: The original `jenkins-aws-arm` container used NodeSource Node + Python3 AWS CLI. `infra/jenkins/Dockerfile.jenkins` in v2 modernizes this to Node 22 + AWS CLI v2.*
 
-| Issue | v1 Problem | v2 Fix |
-|-------|------------|--------|
-| **Build System** | CRA 5 + React 19 mismatch, broken `package-lock.json`, `npm ci` failing, `CI=false` hiding 18 ESLint warnings | Vite + React 19 + Vitest, zero warnings |
-| **Security** | Hardcoded Supabase key in Git history, missing RLS/migrations | Scrubbed history (`git filter-repo`), Zod-validated env vars, Express API + Mongoose, CI gitleaks gate |
-| **Financial Integrity** | Non-transactional writes, drifting `balances` table, floating-point splits, orphaned balances on delete | Integer minor-unit math, MongoDB ACID transactions, derived min-cash-flow settlements |
-| **Auth Architecture** | Browser-side `bcryptjs` alongside Supabase Auth, duplicated `profiles`/`users` tables, full-table `users` fetch | Server-side auth, `jti` refresh rotation, membership-scoped APIs |
-| **Code Quality** | Untouched CRA placeholder test, artificial 2–3s `setTimeout` loaders, auth hard-refresh race, server packages (`nodemailer`, `bcrypt`) in client | 192 automated tests, zero fake delays, unified navigation, clean dependencies |
-| **Infrastructure** | Expired AWS Free Tier, hardcoded `Jenkinsfile` IDs | Zero-cost stack (Vercel + Render + Atlas M0), parameterized Jenkinsfile, Docker Compose for local dev |
+### v1 Flaws Fixed in v2
+
+| Issue | v1 | v2 |
+|-------|----|----|
+| Build | CRA 5 + React 19 mismatch, `CI=false` hiding warnings | Vite + zero warnings |
+| Security | Hardcoded Supabase key in history | Scrubbed history, Zod env validation, gitleaks gate |
+| Financial | Floating-point splits, drifting balances | Integer math, ACID transactions, derived balances |
+| Auth | Browser-side bcrypt, duplicated tables | Server-side auth, `jti` rotation |
+| Testing | 1 placeholder test | 192 automated tests |
+| Infra | Expired AWS Free Tier | Zero-cost: Vercel + Render + Atlas M0 |
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-### Option A: Docker Compose (Full Stack)
+### Option A: Docker Compose
 
 ```bash
 docker compose up --build
 ```
 
-Opens at `http://localhost:8080`. API on host port `5001` (avoids macOS AirPlay Receiver conflict on `5000`). MongoDB replica set auto-initialized for ACID transactions.
+Opens at `http://localhost:8080`. API on host port `5001` (avoids macOS AirPlay conflict). MongoDB replica set auto-initialized for ACID transactions.
 
 ### Option B: Local Development
 
-**Prerequisites:** Node.js 22+, MongoDB 7+ (running as replica set)
-
 ```bash
-# Terminal 1: Server
+# Server (port 5001)
 cd server
-cp ../.env.example .env  # Edit MONGODB_URI, JWT secrets
-npm install
-npm run dev              # http://localhost:5001
+cp ../.env.example .env  # Set MONGODB_URI (Atlas M0 or use Option A), JWT secrets
+npm install && npm run dev
 
-# Terminal 2: Client
+# Client (port 3000)
 cd client
-npm install
-npm run dev              # http://localhost:3000
+npm install && npm run dev
 ```
 
-### Verification Commands
+*Tip: Use Option A's `docker compose up --build` to auto-provision a local replica set, or point `MONGODB_URI` to a free MongoDB Atlas M0 cluster.*
 
-| Command | Expected Output |
-|---------|-----------------|
-| `cd server && npm test` | 145 tests passing |
-| `cd server && npm run test:coverage` | 92% statement coverage |
-| `cd client && npm test` | 47 tests passing |
-| `cd client && npm run build` | JS: 95 KB gzip, CSS: 4 KB gzip |
-| `gitleaks detect --source . --verbose` | No leaks found |
+### Verify
+
+```bash
+cd server && npm test                    # 145 tests
+cd server && npm run test:coverage       # 92% coverage
+cd client && npm test                    # 47 tests
+cd client && npm run build               # 95 KB JS, 4 KB CSS
+gitleaks detect --source . --verbose     # 0 leaks
+```
 
 ---
 
-## 🌿 Branches
+## Design Tradeoffs & Known Limitations
+
+- **Single Active Refresh Session:** One hashed `jti` per user keeps revocation O(1). Tradeoff: signs out earlier devices. Multi-device session list (capped at 5) is on the roadmap.
+
+- **Derived-on-Read Group Balances:** Recomputing from immutable records prevents drift; scales for normal groups. Thousands of expenses would need periodic materialized snapshots.
+
+- **Off-Band Settlement Recording:** Payments (UPI / eSewa / Fonepay / cash) recorded manually, not verified via payment-gateway webhooks.
+
+- **Free-Tier Cold Starts:** Render sleeps after 15 min (30–50 s wake). Dockerfiles and `render.yaml` make migration to always-on infrastructure a config-only change.
+
+---
+
+## Branches
 
 | Branch | Description |
 |--------|-------------|
-| `v2` (default) | Active modernized full-stack application |
-| `v1` | Archived legacy release (CRA + Supabase + Jenkins/AWS S3/CloudFront) |
+| `v2` | Active production (default) |
+| `v1` | Archived legacy (CRA + Supabase + Jenkins/AWS) |
 
 ---
 
-## 📄 License
+## License
 
 [MIT](LICENSE) © 2026 Satyam Chaudhary
+
+---
+
+<details>
+<summary>Machine-readable project metadata (YAML)</summary>
+
+```yaml
+project: CashDash
+version: 2.0.0
+live_url: https://cash-dash-one.vercel.app
+repository: https://github.com/Nittaany/CashDash
+
+stack:
+  frontend: Vite 6, React 19, Tailwind CSS 3
+  backend: Node.js 22, Express 5, Mongoose 8, Zod 4
+  database: MongoDB Atlas M0 (Replica Set)
+  auth: JWT + jti refresh rotation + crypto.timingSafeEqual
+  devops: GitHub Actions, Docker, Vercel, Render
+
+test_counts:
+  server: 145
+  client: 47
+  total: 192
+
+coverage:
+  statements: 92.33%
+  lines: 92.73%
+  splitCalculator: { statements: 94.84%, lines: 93.90% }
+  debtSimplifier: { statements: 94.31%, lines: 95.77% }
+
+bundle_gzip_kb:
+  js: 95
+  css: 4
+
+reproduce:
+  full_stack: docker compose up --build
+  server_test: cd server && npm test
+  server_coverage: cd server && npm run test:coverage
+  client_test: cd client && npm test
+  client_build: cd client && npm run build
+  secret_scan: gitleaks detect --source . --verbose
+```
+
+</details>
