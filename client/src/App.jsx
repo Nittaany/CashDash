@@ -13,7 +13,18 @@ import { ProfilePage } from "./pages/ProfilePage.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
 
 function AppRoutes() {
-  const { user, loading } = useAuth();
+  const { user, loading, serverWaking } = useAuth();
+
+  if (serverWaking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-pulse text-emerald-500 text-lg mb-2">Waking server...</div>
+          <div className="text-slate-400 text-sm">Free tier servers sleep after inactivity</div>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
