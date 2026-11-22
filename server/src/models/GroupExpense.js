@@ -22,5 +22,4 @@ const groupExpenseSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export const GroupExpense =
-  mongoose.models.GroupExpense || mongoose.model("GroupExpense", groupExpenseSchema);
+export default mongoose.models.GroupExpense || mongoose.model("GroupExpense", groupExpenseSchema);
