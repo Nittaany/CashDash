@@ -5,7 +5,7 @@ import User from "../models/User.js";
 import PersonalExpense from "../models/PersonalExpense.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { validate } from "../middleware/validate.js";
-import { authenticate } from "../middleware/auth.js";
+import { authenticate, expiryFor } from "../middleware/auth.js";
 
 const router = Router();
 
@@ -85,6 +85,9 @@ router.post("/", authenticate, validate({ body: createExpenseSchema }), async (r
         throw new AppError(400, "Insufficient wallet balance");
       }
 
+      // Copy expiresAt from demo user for TTL cleanup
+      const expiresAt = expiryFor(req.user);
+
       [expense] = await PersonalExpense.create(
         [{
           userId: req.user.userId,
@@ -92,7 +95,8 @@ router.post("/", authenticate, validate({ body: createExpenseSchema }), async (r
           category,
           description,
           paymentMode,
-          date
+          date,
+          expiresAt
         }],
         { session }
       );
