@@ -7,7 +7,7 @@ import GroupExpense from "../models/GroupExpense.js";
 import Settlement from "../models/Settlement.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { validate } from "../middleware/validate.js";
-import { authenticate } from "../middleware/auth.js";
+import { authenticate, expiryFor } from "../middleware/auth.js";
 import { calculateSplits } from "../services/splitCalculator.js";
 import { simplifyDebts } from "../services/debtSimplifier.js";
 import { objectIdSchema, amountMinorSchema } from "../schemas/common.js";
@@ -142,12 +142,16 @@ router.post("/", authenticate, validate({ body: createGroupSchema }), async (req
       }
     }
 
+    // Copy expiresAt from demo user for TTL cleanup
+    const expiresAt = expiryFor(req.user);
+
     const group = await Group.create({
       name,
       description,
       currency,
       createdBy: req.user.userId,
-      members
+      members,
+      expiresAt
     });
 
     res.status(201).json({ group });
@@ -175,11 +179,18 @@ router.post("/:groupId/members", authenticate, validate({ body: addMemberSchema,
     const { groupId } = req.validated.params;
     const { email } = req.validated.body;
 
+    // Block demo users from adding members
+    if (req.user.isDemo) {
+      // Generic response - don't reveal if email exists
+      return res.json({ message: "Invitation sent" });
+    }
+
     await verifyGroupMember(groupId, req.user.userId);
 
     const userToAdd = await User.findOne({ email }).select("_id");
     if (!userToAdd) {
-      throw new AppError(404, "User not found");
+      // Generic response - don't reveal if email exists
+      return res.json({ message: "Invitation sent" });
     }
 
     const group = await Group.findByIdAndUpdate(
@@ -304,6 +315,9 @@ router.post("/:groupId/expenses", authenticate, validate({ body: createGroupExpe
       throw new AppError(400, `Splits must sum to ${amountMinor}, got ${splitsTotal}`);
     }
 
+    // Copy expiresAt from demo user for TTL cleanup
+    const expiresAt = expiryFor(req.user);
+
     const expense = await GroupExpense.create({
       groupId,
       payerId,
@@ -311,7 +325,8 @@ router.post("/:groupId/expenses", authenticate, validate({ body: createGroupExpe
       amountMinor,
       splitType,
       splits,
-      date: date ?? new Date()
+      date: date ?? new Date(),
+      expiresAt
     });
 
     res.status(201).json({ expense });
@@ -398,12 +413,16 @@ router.post("/:groupId/settlements", authenticate, validate({ body: createSettle
       // Increment settlement counter on group to force write conflict for concurrent settlements
       await Group.findByIdAndUpdate(groupId, { $inc: { settlementVersion: 1 } }, { session });
 
+      // Copy expiresAt from demo user for TTL cleanup
+      const expiresAt = expiryFor(req.user);
+
       [settlement] = await Settlement.create([{
         groupId,
         fromUserId,
         toUserId,
         amountMinor,
-        note
+        note,
+        expiresAt
       }], { session });
     });
 

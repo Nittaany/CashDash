@@ -1,12 +1,25 @@
 import jwt from "jsonwebtoken";
 import { env } from "../config/env.js";
 import { AppError } from "./errorHandler.js";
+import User from "../models/User.js";
+
+/**
+ * Get expiry date for a user (for TTL on related documents)
+ * Returns the user's expiresAt if they are a demo user, otherwise undefined
+ */
+export function expiryFor(user) {
+  if (user?.isDemo && user?.expiresAt) {
+    return user.expiresAt;
+  }
+  return undefined;
+}
 
 /**
  * JWT authentication middleware
  * Verifies Authorization: Bearer <token> and sets req.user
+ * Includes isDemo and expiresAt for demo users
  */
-export function authenticate(req, _res, next) {
+export async function authenticate(req, _res, next) {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader?.startsWith("Bearer ")) {
@@ -18,10 +31,14 @@ export function authenticate(req, _res, next) {
       algorithms: ["HS256"]
     });
 
+    // Fetch user to get current isDemo and expiresAt
+    const user = await User.findById(payload.userId).select("isDemo expiresAt");
+    
     req.user = {
       userId: payload.userId,
       email: payload.email,
-      isDemo: payload.isDemo ?? false
+      isDemo: user?.isDemo ?? false,
+      expiresAt: user?.expiresAt
     };
 
     next();
