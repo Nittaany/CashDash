@@ -1,12 +1,15 @@
 const API_URL = import.meta.env.VITE_API_URL || "";
 
 let accessToken = null;
+let isDemo = false;
+let onDemoSessionEnd = null;
 
 /**
  * Set the access token (stored in memory only)
  */
-export function setAccessToken(token) {
+export function setAccessToken(token, demo = false) {
   accessToken = token;
+  isDemo = demo;
 }
 
 /**
@@ -21,6 +24,14 @@ export function getAccessToken() {
  */
 export function clearAccessToken() {
   accessToken = null;
+  isDemo = false;
+}
+
+/**
+ * Set callback for demo session end
+ */
+export function setDemoSessionEndCallback(callback) {
+  onDemoSessionEnd = callback;
 }
 
 /**
@@ -74,10 +85,19 @@ async function silentRefresh() {
       accessToken = data.accessToken;
       return true;
     }
+    
+    // Refresh failed - if demo user, trigger callback
+    if (isDemo && onDemoSessionEnd) {
+      onDemoSessionEnd();
+    }
   } catch {
-    // Refresh failed
+    // Refresh failed - if demo user, trigger callback
+    if (isDemo && onDemoSessionEnd) {
+      onDemoSessionEnd();
+    }
   }
   accessToken = null;
+  isDemo = false;
   return false;
 }
 

@@ -1,20 +1,32 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { Wallet, Loader2, Zap } from "lucide-react";
 
 export function LoginPage() {
   const { login, loginDemo } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
+
+  // Show message from navigation state (e.g., "Demo session ended")
+  useEffect(() => {
+    if (location.state?.message) {
+      setInfo(location.state.message);
+      // Clear the state so it doesn't persist on refresh
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
+    setInfo("");
     setLoading(true);
 
     try {
@@ -29,6 +41,7 @@ export function LoginPage() {
 
   const handleDemo = async () => {
     setError("");
+    setInfo("");
     setDemoLoading(true);
 
     try {
@@ -49,6 +62,12 @@ export function LoginPage() {
           <h1 className="text-2xl font-bold text-slate-100">Welcome to CashDash</h1>
           <p className="text-slate-400 mt-2">Track expenses, split bills, settle debts</p>
         </div>
+
+        {info && (
+          <div className="mb-4 p-3 bg-amber-900/50 border border-amber-700 rounded-lg text-amber-200 text-sm">
+            {info}
+          </div>
+        )}
 
         {error && (
           <div className="mb-4 p-3 bg-rose-900/50 border border-rose-700 rounded-lg text-rose-200 text-sm">

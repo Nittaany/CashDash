@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { api, setAccessToken, clearAccessToken, checkApiHealth } from "../api/client.js";
+import { useNavigate } from "react-router-dom";
+import { api, setAccessToken, clearAccessToken, checkApiHealth, setDemoSessionEndCallback } from "../api/client.js";
 
 const AuthContext = createContext(null);
 
@@ -7,6 +8,16 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [serverWaking, setServerWaking] = useState(false);
+  const [demoSessionEnded, setDemoSessionEnded] = useState(false);
+
+  // Set up demo session end callback
+  useEffect(() => {
+    setDemoSessionEndCallback(() => {
+      setDemoSessionEnded(true);
+      setUser(null);
+      clearAccessToken();
+    });
+  }, []);
 
   // Try to restore session on mount
   useEffect(() => {
@@ -36,13 +47,13 @@ export function AuthProvider({ children }) {
         );
 
         if (refreshRes.ok) {
-          const { accessToken } = await refreshRes.json();
-          setAccessToken(accessToken);
+          const { accessToken, user: userData } = await refreshRes.json();
+          setAccessToken(accessToken, userData?.isDemo);
 
           // Fetch user profile
-          const { user: userData } = await api.get("/api/auth/me");
+          const { user: fullUserData } = await api.get("/api/auth/me");
           if (!cancelled) {
-            setUser(userData);
+            setUser(fullUserData);
           }
         }
       } catch {
@@ -61,15 +72,17 @@ export function AuthProvider({ children }) {
 
   const login = useCallback(async (email, password) => {
     const { accessToken, user: userData } = await api.post("/api/auth/login", { email, password });
-    setAccessToken(accessToken);
+    setAccessToken(accessToken, userData.isDemo);
     setUser(userData);
+    setDemoSessionEnded(false);
     return userData;
   }, []);
 
   const register = useCallback(async (data) => {
     const { accessToken, user: userData } = await api.post("/api/auth/register", data);
-    setAccessToken(accessToken);
+    setAccessToken(accessToken, userData.isDemo);
     setUser(userData);
+    setDemoSessionEnded(false);
     return userData;
   }, []);
 
@@ -84,8 +97,9 @@ export function AuthProvider({ children }) {
     }
 
     const { accessToken, user: userData } = await api.post("/api/auth/demo", {});
-    setAccessToken(accessToken);
+    setAccessToken(accessToken, true);
     setUser(userData);
+    setDemoSessionEnded(false);
     return userData;
   }, []);
 
@@ -97,6 +111,7 @@ export function AuthProvider({ children }) {
     }
     clearAccessToken();
     setUser(null);
+    setDemoSessionEnded(false);
   }, []);
 
   const refreshUser = useCallback(async () => {
@@ -105,15 +120,21 @@ export function AuthProvider({ children }) {
     return userData;
   }, []);
 
+  const clearDemoSessionEnded = useCallback(() => {
+    setDemoSessionEnded(false);
+  }, []);
+
   const value = {
     user,
     loading,
     serverWaking,
+    demoSessionEnded,
     login,
     register,
     loginDemo,
     logout,
-    refreshUser
+    refreshUser,
+    clearDemoSessionEnded
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
