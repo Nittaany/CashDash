@@ -1,12 +1,15 @@
 pipeline {
     agent any
 
+    parameters {
+        string(name: 'AWS_CREDENTIALS_ID', description: 'Jenkins AWS credentials ID')
+        string(name: 'S3_BUCKET', description: 'Target S3 bucket')
+        string(name: 'CLOUDFRONT_DIST_ID', description: 'CloudFront distribution ID')
+    }
+
     environment {
         NODE_ENV = 'production'
-        AWS_CREDENTIALS_ID = 'REDACTED_CREDENTIAL_ID' // Your Jenkins AWS credentials
-        S3_BUCKET = 'aws-bucket-cashdash951'
         REGION = 'ap-south-1'
-        CLOUDFRONT_DIST_ID = 'EQZNQAZW1UMNH' // Your CloudFront distribution
     }
 
     stages {
@@ -30,13 +33,13 @@ pipeline {
 
         stage('Deploy to S3') {
             steps {
-                withAWS(credentials: "${AWS_CREDENTIALS_ID}", region: "${REGION}") {
+                withAWS(credentials: "${params.AWS_CREDENTIALS_ID}", region: "${REGION}") {
                     sh """
                         # Sync build folder to S3 bucket (no ACL, bucket ownership enforced)
-                        aws s3 sync build/ s3://${S3_BUCKET}/ --delete
+                        aws s3 sync build/ s3://${params.S3_BUCKET}/ --delete
                         
                         # Optional: Invalidate CloudFront cache
-                        aws cloudfront create-invalidation --distribution-id ${CLOUDFRONT_DIST_ID} --paths "/*"
+                        aws cloudfront create-invalidation --distribution-id ${params.CLOUDFRONT_DIST_ID} --paths "/*"
                     """
                 }
             }
