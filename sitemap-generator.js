@@ -2,19 +2,12 @@ const { SitemapStream, streamToPromise } = require("sitemap");
 const { createWriteStream } = require("fs");
 const path = require("path");
 
-// Define your website's base URL
-const siteUrl = "https://trackmyspends.vercel.app";
+// Define your website's base URL (use env var or default)
+const siteUrl = process.env.SITE_URL || "https://cash-dash-one.vercel.app";
 const routes = [
   "/",
   "/login",
   "/register",
-  "forget-password",
-  "/profile",
-  "/dashboard",
-  "/expenses",
-  "/balance",
-  "/expense-tracker",
-  
 ];
 
 // Generate sitemap
@@ -33,7 +26,7 @@ async function generateSitemap() {
     sitemapStream.end();
     await streamToPromise(sitemapStream);
   
-    console.log("✅ Sitemap successfully generated!");
+    console.log("Sitemap successfully generated!");
   }
   
   // Run the function

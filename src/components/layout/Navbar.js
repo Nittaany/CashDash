@@ -56,7 +56,7 @@ function Navbar() {
       className="w-16 h-14 mr-1" // Adjust size as needed
     />
 
-    Expense-Manager
+    Expense Manager
   </Link>
 
                     

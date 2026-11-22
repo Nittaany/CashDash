@@ -1,18 +1,23 @@
 pipeline {
     agent any
 
+    parameters {
+        string(name: 'REPO_URL', defaultValue: 'https://github.com/Nittaany/CashDash.git', description: 'Git repository URL')
+        string(name: 'GIT_BRANCH', defaultValue: 'v1', description: 'Branch to build')
+        string(name: 'AWS_CREDENTIALS_ID', defaultValue: 'aws-credentials-id', description: 'Jenkins AWS credentials ID')
+        string(name: 'S3_BUCKET', defaultValue: 'your-s3-bucket-name', description: 'S3 bucket for deployment')
+        string(name: 'REGION', defaultValue: 'ap-south-1', description: 'AWS region')
+        string(name: 'CLOUDFRONT_DIST_ID', defaultValue: 'your-cloudfront-dist-id', description: 'CloudFront distribution ID')
+    }
+
     environment {
         NODE_ENV = 'production'
-        AWS_CREDENTIALS_ID = 'REDACTED_CREDENTIAL_ID' // Your Jenkins AWS credentials
-        S3_BUCKET = 'aws-bucket-cashdash951'
-        REGION = 'ap-south-1'
-        CLOUDFRONT_DIST_ID = 'EQZNQAZW1UMNH' // Your CloudFront distribution
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/Nittaany/CashDash.git'
+                git branch: "${params.GIT_BRANCH}", url: "${params.REPO_URL}"
             }
         }
 
@@ -30,13 +35,13 @@ pipeline {
 
         stage('Deploy to S3') {
             steps {
-                withAWS(credentials: "${AWS_CREDENTIALS_ID}", region: "${REGION}") {
+                withAWS(credentials: "${params.AWS_CREDENTIALS_ID}", region: "${params.REGION}") {
                     sh """
                         # Sync build folder to S3 bucket (no ACL, bucket ownership enforced)
-                        aws s3 sync build/ s3://${S3_BUCKET}/ --delete
+                        aws s3 sync build/ s3://${params.S3_BUCKET}/ --delete
                         
-                        # Optional: Invalidate CloudFront cache
-                        aws cloudfront create-invalidation --distribution-id ${CLOUDFRONT_DIST_ID} --paths "/*"
+                        # Invalidate CloudFront cache
+                        aws cloudfront create-invalidation --distribution-id ${params.CLOUDFRONT_DIST_ID} --paths "/*"
                     """
                 }
             }
