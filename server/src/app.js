@@ -14,13 +14,13 @@ import groupsRoutes from "./routes/groups.routes.js";
 export const app = express();
 
 // Trust proxy for rate limiting behind reverse proxies
-app.set("trust proxy", 1);
+app.set("trust proxy", env.TRUST_PROXY);
 
 // Security middleware
 app.use(helmet());
 
 // CORS: support comma-separated origins for dev + prod
-const allowedOrigins = env.CLIENT_URL.split(",").map((o) => o.trim());
+export const allowedOrigins = env.CLIENT_URL.split(",").map((o) => o.trim());
 app.use(cors({
   origin: (origin, callback) => {
     // Allow requests with no origin (mobile apps, curl, etc.)

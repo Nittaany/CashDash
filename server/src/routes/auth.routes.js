@@ -67,11 +67,10 @@ function compareHashes(a, b) {
 }
 
 function setRefreshCookie(res, token) {
-  const isProd = env.NODE_ENV === "production";
   res.cookie("refreshToken", token, {
     httpOnly: true,
-    secure: isProd,
-    sameSite: isProd ? "none" : "lax",
+    secure: env.COOKIE_SECURE,
+    sameSite: env.COOKIE_SAMESITE,
     path: "/api/auth",
     maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
   });
