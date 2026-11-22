@@ -2,7 +2,7 @@
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://cashdash-api.onrender.com/api/:path*"
+      "destination": "https://RENDER_HOST_TODO/api/:path*"
     },
     {
       "source": "/(.*)",
