@@ -445,7 +445,7 @@ describe("Groups & Settlements Routes", () => {
       expect(res.text).toContain("Date,Description,Amount,Payer");
     });
 
-    it("neutralizes formula injection", async () => {
+    it("neutralizes formula injection with = + - @", async () => {
       await request(app)
         .post(`/api/groups/${groupId}/expenses`)
         .set("Authorization", `Bearer ${accessToken}`)
@@ -462,6 +462,293 @@ describe("Groups & Settlements Routes", () => {
         .set("Authorization", `Bearer ${accessToken}`);
 
       expect(res.text).toContain("'=SUM(A1:A10)"); // Prefixed with '
+    });
+
+    it("properly quotes fields with comma, quote, newline (RFC 4180)", async () => {
+      await request(app)
+        .post(`/api/groups/${groupId}/expenses`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          description: 'Item with "quotes", comma, and\nnewline',
+          amountMinor: 7500,
+          payerId: userId,
+          splitType: "EQUAL",
+          participants: [userId]
+        });
+
+      const res = await request(app)
+        .get(`/api/groups/${groupId}/export.csv`)
+        .set("Authorization", `Bearer ${accessToken}`);
+
+      // RFC 4180: quotes doubled, field wrapped in quotes
+      expect(res.text).toContain('"Item with ""quotes"", comma, and\nnewline"');
+    });
+
+    it("neutralizes + and - formula injection", async () => {
+      await request(app)
+        .post(`/api/groups/${groupId}/expenses`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          description: "+1000",
+          amountMinor: 1000,
+          payerId: userId,
+          splitType: "EQUAL",
+          participants: [userId]
+        });
+
+      const res = await request(app)
+        .get(`/api/groups/${groupId}/export.csv`)
+        .set("Authorization", `Bearer ${accessToken}`);
+
+      expect(res.text).toContain("'+1000"); // Prefixed with '
+    });
+  });
+
+  describe("Validation hardening", () => {
+    let groupId;
+
+    beforeEach(async () => {
+      const groupRes = await request(app)
+        .post("/api/groups")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          name: "Validation Test Group",
+          memberEmails: ["user2@example.com", "user3@example.com"]
+        });
+      groupId = groupRes.body.group._id;
+    });
+
+    it("returns 400 for invalid ObjectId in groupId", async () => {
+      const res = await request(app)
+        .get("/api/groups/not-a-valid-id/summary")
+        .set("Authorization", `Bearer ${accessToken}`);
+
+      expect(res.status).toBe(400);
+      // Zod validation returns "Validation failed"
+    });
+
+    it("returns 400 for invalid ObjectId in expenseId", async () => {
+      const res = await request(app)
+        .delete(`/api/groups/${groupId}/expenses/invalid-expense-id`)
+        .set("Authorization", `Bearer ${accessToken}`);
+
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 400 for duplicate participant IDs", async () => {
+      const res = await request(app)
+        .post(`/api/groups/${groupId}/expenses`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          description: "Duplicate participants",
+          amountMinor: 20000,
+          payerId: userId,
+          splitType: "EQUAL",
+          participants: [userId, userId, user2Id] // userId duplicated
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain("Duplicate");
+    });
+
+    it("returns 400 for payer outside group", async () => {
+      // Create a user not in the group
+      const outsider = await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Outsider Payer",
+          email: "outsiderpayer@example.com",
+          password: "OutsiderPass123"
+        });
+
+      const res = await request(app)
+        .post(`/api/groups/${groupId}/expenses`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          description: "External payer",
+          amountMinor: 10000,
+          payerId: outsider.body.user.id,
+          splitType: "EQUAL",
+          participants: [userId, user2Id]
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain("Payer must be a group member");
+    });
+
+    it("returns 400 for participant outside group", async () => {
+      const outsider = await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Outsider Participant",
+          email: "outsiderpart@example.com",
+          password: "OutsiderPass123"
+        });
+
+      const res = await request(app)
+        .post(`/api/groups/${groupId}/expenses`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          description: "External participant",
+          amountMinor: 10000,
+          payerId: userId,
+          splitType: "EQUAL",
+          participants: [userId, outsider.body.user.id]
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain("participants must be group members");
+    });
+
+    it("validates EXACT shares sum to amountMinor", async () => {
+      const res = await request(app)
+        .post(`/api/groups/${groupId}/expenses`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          description: "Bad exact shares",
+          amountMinor: 10000,
+          payerId: userId,
+          splitType: "EXACT",
+          participants: [userId, user2Id],
+          exactSharesMinor: {
+            [userId]: 3000,
+            [user2Id]: 3000 // Sum is 6000, not 10000
+          }
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/sum/i);
+    });
+
+    it("validates PERCENT shares sum to 100", async () => {
+      const res = await request(app)
+        .post(`/api/groups/${groupId}/expenses`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          description: "Bad percent shares",
+          amountMinor: 10000,
+          payerId: userId,
+          splitType: "PERCENT",
+          participants: [userId, user2Id],
+          percentShares: {
+            [userId]: 30,
+            [user2Id]: 30 // Sum is 60%, not 100%
+          }
+        });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toMatch(/sum|percent/i);
+    });
+  });
+
+  describe("Expense delete restores summary", () => {
+    let groupId;
+
+    it("deleting expense restores summary to prior state", async () => {
+      const groupRes = await request(app)
+        .post("/api/groups")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          name: "Delete Restore Test",
+          memberEmails: ["user2@example.com"]
+        });
+      groupId = groupRes.body.group._id;
+
+      // Get initial summary
+      const initialSummary = await request(app)
+        .get(`/api/groups/${groupId}/summary`)
+        .set("Authorization", `Bearer ${accessToken}`);
+
+      // Create expense
+      const expRes = await request(app)
+        .post(`/api/groups/${groupId}/expenses`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          description: "Temp expense",
+          amountMinor: 10000,
+          payerId: userId,
+          splitType: "EQUAL",
+          participants: [userId, user2Id]
+        });
+
+      // Delete expense
+      await request(app)
+        .delete(`/api/groups/${groupId}/expenses/${expRes.body.expense._id}`)
+        .set("Authorization", `Bearer ${accessToken}`);
+
+      // Get final summary
+      const finalSummary = await request(app)
+        .get(`/api/groups/${groupId}/summary`)
+        .set("Authorization", `Bearer ${accessToken}`);
+
+      // Should match initial state
+      expect(finalSummary.body.netBalances).toEqual(initialSummary.body.netBalances);
+      expect(finalSummary.body.simplifiedTransfers).toEqual(initialSummary.body.simplifiedTransfers);
+    });
+  });
+
+  describe("Concurrent settlements", () => {
+    let groupId;
+
+    it("two concurrent full-amount settlements: exactly one succeeds", async () => {
+      const groupRes = await request(app)
+        .post("/api/groups")
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          name: "Concurrent Settlement Test",
+          memberEmails: ["user2@example.com"]
+        });
+      groupId = groupRes.body.group._id;
+
+      // User1 pays 10000, user2 owes 5000
+      await request(app)
+        .post(`/api/groups/${groupId}/expenses`)
+        .set("Authorization", `Bearer ${accessToken}`)
+        .send({
+          description: "Expense",
+          amountMinor: 10000,
+          payerId: userId,
+          splitType: "EQUAL",
+          participants: [userId, user2Id]
+        });
+
+      // Fire two concurrent settlements of full amount (5000 each)
+      const results = await Promise.all([
+        request(app)
+          .post(`/api/groups/${groupId}/settlements`)
+          .set("Authorization", `Bearer ${user2Token}`)
+          .send({
+            fromUserId: user2Id,
+            toUserId: userId,
+            amountMinor: 5000
+          }),
+        request(app)
+          .post(`/api/groups/${groupId}/settlements`)
+          .set("Authorization", `Bearer ${user2Token}`)
+          .send({
+            fromUserId: user2Id,
+            toUserId: userId,
+            amountMinor: 5000
+          })
+      ]);
+
+      const successes = results.filter((r) => r.status === 201);
+      const failures = results.filter((r) => r.status === 400);
+
+      // Exactly one should succeed, one should fail due to no remaining debt
+      expect(successes.length).toBe(1);
+      expect(failures.length).toBe(1);
+    });
+  });
+
+  describe("404 for unknown routes", () => {
+    it("returns 404 JSON for unknown API route", async () => {
+      const res = await request(app)
+        .get("/api/nonexistent")
+        .set("Authorization", `Bearer ${accessToken}`);
+
+      expect(res.status).toBe(404);
+      expect(res.body.error).toBeDefined();
     });
   });
 });

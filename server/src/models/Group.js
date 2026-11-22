@@ -6,7 +6,8 @@ const groupSchema = new mongoose.Schema(
     description: { type: String, trim: true, default: "" },
     currency: { type: String, enum: ["NPR", "INR", "USD"], default: "NPR" },
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", index: true }]
+    members: [{ type: mongoose.Schema.Types.ObjectId, ref: "User", index: true }],
+    settlementVersion: { type: Number, default: 0 } // For optimistic concurrency on settlements
   },
   { timestamps: true }
 );

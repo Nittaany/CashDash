@@ -10,41 +10,56 @@ import { validate } from "../middleware/validate.js";
 import { authenticate } from "../middleware/auth.js";
 import { calculateSplits } from "../services/splitCalculator.js";
 import { simplifyDebts } from "../services/debtSimplifier.js";
+import { objectIdSchema, amountMinorSchema } from "../schemas/common.js";
 
 const router = Router();
 
-// Zod schemas
+// Zod schemas with Zod 4 style and capped records
 const createGroupSchema = z.strictObject({
   name: z.string().min(1).max(100),
   description: z.string().max(500).optional(),
   currency: z.enum(["NPR", "INR", "USD"]).optional(),
-  memberEmails: z.array(z.string().email()).max(20).optional()
+  memberEmails: z.array(z.email()).max(20).optional()
 });
 
 const addMemberSchema = z.strictObject({
-  email: z.string().email().max(255).toLowerCase()
+  email: z.email().max(255).toLowerCase()
 });
 
 const createGroupExpenseSchema = z.strictObject({
   description: z.string().min(1).max(500),
-  amountMinor: z.number().int().positive().max(1e12),
-  payerId: z.string(),
+  amountMinor: amountMinorSchema,
+  payerId: objectIdSchema,
   splitType: z.enum(["EQUAL", "EXACT", "PERCENT"]),
-  participants: z.array(z.string()).min(1).max(50),
-  exactSharesMinor: z.record(z.string(), z.number().int().positive().max(1e12)).optional(),
-  percentShares: z.record(z.string(), z.number().min(0).max(100)).optional(),
+  participants: z.array(objectIdSchema).min(1).max(50),
+  exactSharesMinor: z.record(objectIdSchema, amountMinorSchema).optional()
+    .refine((obj) => !obj || Object.keys(obj).length <= 50, "Max 50 entries"),
+  percentShares: z.record(objectIdSchema, z.number().min(0).max(100)).optional()
+    .refine((obj) => !obj || Object.keys(obj).length <= 50, "Max 50 entries"),
   date: z.coerce.date().optional()
 });
 
 const createSettlementSchema = z.strictObject({
-  fromUserId: z.string(),
-  toUserId: z.string(),
-  amountMinor: z.number().int().positive().max(1e12),
+  fromUserId: objectIdSchema,
+  toUserId: objectIdSchema,
+  amountMinor: amountMinorSchema,
   note: z.string().max(500).optional()
+});
+
+const groupIdParamsSchema = z.strictObject({
+  groupId: objectIdSchema
+});
+
+const expenseIdParamsSchema = z.strictObject({
+  groupId: objectIdSchema,
+  expenseId: objectIdSchema
 });
 
 // Helper: verify user is group member
 async function verifyGroupMember(groupId, userId) {
+  if (!mongoose.Types.ObjectId.isValid(groupId)) {
+    throw new AppError(400, "Invalid group ID format");
+  }
   const group = await Group.findOne({
     _id: groupId,
     members: userId
@@ -60,17 +75,55 @@ function getMemberIds(group) {
   return group.members.map((m) => m.toString());
 }
 
-// Helper: neutralize CSV formula injection
+// Helper: neutralize CSV formula injection (RFC 4180 compliant)
 function sanitizeCSVCell(value) {
-  const str = String(value ?? "");
+  let str = String(value ?? "");
+  
+  // Neutralize formula injection: = + - @ TAB CR
   if (/^[=+\-@\t\r]/.test(str)) {
-    return `'${str}`;
+    str = `'${str}`;
   }
-  // RFC4180: escape quotes and wrap in quotes if contains comma/newline/quote
+  
+  // RFC 4180: if contains comma, quote, newline, or carriage return - wrap in quotes
   if (/[",\n\r]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;
   }
   return str;
+}
+
+// Helper: compute pairwise debt between two users
+function computePairwiseDebt(expenses, settlements, fromUserId, toUserId) {
+  let debt = 0;
+  
+  for (const expense of expenses) {
+    const payerId = expense.payerId.toString();
+    for (const split of expense.splits) {
+      const splitUserId = split.userId.toString();
+      // fromUser owes toUser when toUser paid and fromUser has a split
+      if (payerId === toUserId && splitUserId === fromUserId) {
+        debt += split.amountMinor;
+      }
+      // toUser owes fromUser when fromUser paid and toUser has a split
+      if (payerId === fromUserId && splitUserId === toUserId) {
+        debt -= split.amountMinor;
+      }
+    }
+  }
+  
+  for (const settlement of settlements) {
+    const settleFrom = settlement.fromUserId.toString();
+    const settleTo = settlement.toUserId.toString();
+    // fromUser already paid toUser
+    if (settleFrom === fromUserId && settleTo === toUserId) {
+      debt -= settlement.amountMinor;
+    }
+    // toUser already paid fromUser
+    if (settleFrom === toUserId && settleTo === fromUserId) {
+      debt += settlement.amountMinor;
+    }
+  }
+  
+  return debt; // positive means fromUser owes toUser
 }
 
 // POST /api/groups - Create group
@@ -117,9 +170,9 @@ router.get("/", authenticate, async (req, res, next) => {
 });
 
 // POST /api/groups/:groupId/members - Add member to group
-router.post("/:groupId/members", authenticate, validate({ body: addMemberSchema }), async (req, res, next) => {
+router.post("/:groupId/members", authenticate, validate({ body: addMemberSchema, params: groupIdParamsSchema }), async (req, res, next) => {
   try {
-    const { groupId } = req.params;
+    const { groupId } = req.validated.params;
     const { email } = req.validated.body;
 
     await verifyGroupMember(groupId, req.user.userId);
@@ -142,9 +195,9 @@ router.post("/:groupId/members", authenticate, validate({ body: addMemberSchema 
 });
 
 // GET /api/groups/:groupId/summary - Get group summary with simplified debts
-router.get("/:groupId/summary", authenticate, async (req, res, next) => {
+router.get("/:groupId/summary", authenticate, validate({ params: groupIdParamsSchema }), async (req, res, next) => {
   try {
-    const { groupId } = req.params;
+    const { groupId } = req.validated.params;
     const group = await verifyGroupMember(groupId, req.user.userId);
     await group.populate("members", "_id name email paymentHandle");
 
@@ -205,9 +258,9 @@ router.get("/:groupId/summary", authenticate, async (req, res, next) => {
 });
 
 // POST /api/groups/:groupId/expenses - Create group expense
-router.post("/:groupId/expenses", authenticate, validate({ body: createGroupExpenseSchema }), async (req, res, next) => {
+router.post("/:groupId/expenses", authenticate, validate({ body: createGroupExpenseSchema, params: groupIdParamsSchema }), async (req, res, next) => {
   try {
-    const { groupId } = req.params;
+    const { groupId } = req.validated.params;
     const { description, amountMinor, payerId, splitType, participants, exactSharesMinor, percentShares, date } = req.validated.body;
 
     const group = await verifyGroupMember(groupId, req.user.userId);
@@ -218,6 +271,12 @@ router.post("/:groupId/expenses", authenticate, validate({ body: createGroupExpe
       throw new AppError(400, "Payer must be a group member");
     }
 
+    // Check for duplicate participants
+    const uniqueParticipants = new Set(participants);
+    if (uniqueParticipants.size !== participants.length) {
+      throw new AppError(400, "Duplicate participants not allowed");
+    }
+
     // Validate all participants are members
     for (const p of participants) {
       if (!memberIds.includes(p)) {
@@ -225,14 +284,25 @@ router.post("/:groupId/expenses", authenticate, validate({ body: createGroupExpe
       }
     }
 
-    // Calculate splits
-    const splits = calculateSplits({
-      amountMinor,
-      splitType,
-      participants,
-      exactSharesMinor,
-      percentShares
-    });
+    // Calculate splits (wrap error from splitCalculator)
+    let splits;
+    try {
+      splits = calculateSplits({
+        amountMinor,
+        splitType,
+        participants,
+        exactSharesMinor,
+        percentShares
+      });
+    } catch (calcError) {
+      throw new AppError(400, calcError.message);
+    }
+
+    // Verify splits sum to amountMinor
+    const splitsTotal = splits.reduce((sum, s) => sum + s.amountMinor, 0);
+    if (splitsTotal !== amountMinor) {
+      throw new AppError(400, `Splits must sum to ${amountMinor}, got ${splitsTotal}`);
+    }
 
     const expense = await GroupExpense.create({
       groupId,
@@ -251,9 +321,9 @@ router.post("/:groupId/expenses", authenticate, validate({ body: createGroupExpe
 });
 
 // DELETE /api/groups/:groupId/expenses/:expenseId - Delete group expense
-router.delete("/:groupId/expenses/:expenseId", authenticate, async (req, res, next) => {
+router.delete("/:groupId/expenses/:expenseId", authenticate, validate({ params: expenseIdParamsSchema }), async (req, res, next) => {
   try {
-    const { groupId, expenseId } = req.params;
+    const { groupId, expenseId } = req.validated.params;
     const group = await verifyGroupMember(groupId, req.user.userId);
 
     const expense = await GroupExpense.findOne({ _id: expenseId, groupId });
@@ -277,97 +347,78 @@ router.delete("/:groupId/expenses/:expenseId", authenticate, async (req, res, ne
   }
 });
 
-// POST /api/groups/:groupId/settlements - Record settlement
-router.post("/:groupId/settlements", authenticate, validate({ body: createSettlementSchema }), async (req, res, next) => {
+// POST /api/groups/:groupId/settlements - Record settlement (with transaction for concurrency)
+router.post("/:groupId/settlements", authenticate, validate({ body: createSettlementSchema, params: groupIdParamsSchema }), async (req, res, next) => {
+  const session = await mongoose.startSession();
   try {
-    const { groupId } = req.params;
-    const { fromUserId, toUserId, amountMinor, note } = req.validated.body;
+    let settlement;
+    
+    await session.withTransaction(async () => {
+      const { groupId } = req.validated.params;
+      const { fromUserId, toUserId, amountMinor, note } = req.validated.body;
 
-    const group = await verifyGroupMember(groupId, req.user.userId);
-    const memberIds = getMemberIds(group);
-
-    // Validate both users are members
-    if (!memberIds.includes(fromUserId) || !memberIds.includes(toUserId)) {
-      throw new AppError(400, "Both users must be group members");
-    }
-
-    if (fromUserId === toUserId) {
-      throw new AppError(400, "Cannot settle with yourself");
-    }
-
-    // Requester must be fromUserId or toUserId
-    if (req.user.userId !== fromUserId && req.user.userId !== toUserId) {
-      throw new AppError(403, "You can only create settlements you are part of");
-    }
-
-    // Verify amount doesn't exceed outstanding debt
-    const [expenses, existingSettlements] = await Promise.all([
-      GroupExpense.find({ groupId }),
-      Settlement.find({ groupId })
-    ]);
-
-    const expensesForCalc = expenses.map((e) => ({
-      payerId: e.payerId.toString(),
-      amountMinor: e.amountMinor,
-      splits: e.splits.map((s) => ({
-        userId: s.userId.toString(),
-        amountMinor: s.amountMinor
-      }))
-    }));
-
-    const settlementsForCalc = existingSettlements.map((s) => ({
-      fromUserId: s.fromUserId.toString(),
-      toUserId: s.toUserId.toString(),
-      amountMinor: s.amountMinor
-    }));
-
-    // Compute current net balance for fromUser
-    let fromUserNet = 0;
-    for (const expense of expensesForCalc) {
-      for (const split of expense.splits) {
-        if (split.userId === fromUserId && expense.payerId !== fromUserId) {
-          fromUserNet -= split.amountMinor; // fromUser owes
-        }
-        if (expense.payerId === fromUserId && split.userId !== fromUserId) {
-          fromUserNet += split.amountMinor; // fromUser is owed
-        }
+      const group = await Group.findOne({ _id: groupId, members: req.user.userId }).session(session);
+      if (!group) {
+        throw new AppError(403, "Not a member of this group");
       }
-    }
-    for (const settlement of settlementsForCalc) {
-      if (settlement.fromUserId === fromUserId) {
-        fromUserNet += settlement.amountMinor;
-      }
-      if (settlement.toUserId === fromUserId) {
-        fromUserNet -= settlement.amountMinor;
-      }
-    }
+      
+      const memberIds = getMemberIds(group);
 
-    // If fromUserNet < 0, user owes money. Settlement amount shouldn't exceed what they owe.
-    if (fromUserNet >= 0) {
-      throw new AppError(400, "No outstanding debt to settle");
-    }
-    if (amountMinor > Math.abs(fromUserNet)) {
-      throw new AppError(400, `Settlement amount exceeds outstanding debt of ${Math.abs(fromUserNet)}`);
-    }
+      // Validate both users are members
+      if (!memberIds.includes(fromUserId) || !memberIds.includes(toUserId)) {
+        throw new AppError(400, "Both users must be group members");
+      }
 
-    const settlement = await Settlement.create({
-      groupId,
-      fromUserId,
-      toUserId,
-      amountMinor,
-      note
+      if (fromUserId === toUserId) {
+        throw new AppError(400, "Cannot settle with yourself");
+      }
+
+      // Requester must be fromUserId or toUserId
+      if (req.user.userId !== fromUserId && req.user.userId !== toUserId) {
+        throw new AppError(403, "You can only create settlements you are part of");
+      }
+
+      // Load expenses and settlements within transaction
+      const [expenses, existingSettlements] = await Promise.all([
+        GroupExpense.find({ groupId }).session(session),
+        Settlement.find({ groupId }).session(session)
+      ]);
+
+      // Compute pairwise debt between fromUser and toUser
+      const pairwiseDebt = computePairwiseDebt(expenses, existingSettlements, fromUserId, toUserId);
+
+      // fromUser can only settle if they owe toUser (pairwiseDebt > 0)
+      if (pairwiseDebt <= 0) {
+        throw new AppError(400, "No outstanding debt to settle to this user");
+      }
+      if (amountMinor > pairwiseDebt) {
+        throw new AppError(400, `Settlement amount exceeds outstanding debt of ${pairwiseDebt}`);
+      }
+
+      // Increment settlement counter on group to force write conflict for concurrent settlements
+      await Group.findByIdAndUpdate(groupId, { $inc: { settlementVersion: 1 } }, { session });
+
+      [settlement] = await Settlement.create([{
+        groupId,
+        fromUserId,
+        toUserId,
+        amountMinor,
+        note
+      }], { session });
     });
 
     res.status(201).json({ settlement });
   } catch (error) {
     next(error);
+  } finally {
+    await session.endSession();
   }
 });
 
 // GET /api/groups/:groupId/export.csv - Export group expenses as CSV
-router.get("/:groupId/export.csv", authenticate, async (req, res, next) => {
+router.get("/:groupId/export.csv", authenticate, validate({ params: groupIdParamsSchema }), async (req, res, next) => {
   try {
-    const { groupId } = req.params;
+    const { groupId } = req.validated.params;
     const group = await verifyGroupMember(groupId, req.user.userId);
     await group.populate("members", "_id name email");
 

@@ -202,20 +202,101 @@ describe("Auth Routes", () => {
   });
 
   describe("POST /api/auth/demo", () => {
-    it("creates demo user and returns token", async () => {
+    it("creates ephemeral demo user and returns token", async () => {
       const res = await request(app).post("/api/auth/demo");
 
       expect(res.status).toBe(200);
       expect(res.body.accessToken).toBeDefined();
-      expect(res.body.user.email).toBe("demo@cashdash.app");
+      expect(res.body.user.email).toMatch(/^demo-[a-f0-9]+@cashdash\.app$/);
       expect(res.body.user.isDemo).toBe(true);
     });
 
-    it("is idempotent - returns same user on repeated calls", async () => {
+    it("creates unique user per request (ephemeral)", async () => {
       const res1 = await request(app).post("/api/auth/demo");
       const res2 = await request(app).post("/api/auth/demo");
 
-      expect(res1.body.user.id).toBe(res2.body.user.id);
+      // Each call creates a new ephemeral user
+      expect(res1.body.user.id).not.toBe(res2.body.user.id);
+      expect(res1.body.user.email).not.toBe(res2.body.user.email);
+    });
+  });
+
+  describe("POST /api/auth/logout", () => {
+    it("invalidates refresh token after logout", async () => {
+      const registerRes = await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Logout Test",
+          email: "logout@example.com",
+          password: "LogoutPass123"
+        });
+
+      const setCookie = registerRes.headers["set-cookie"];
+      const refreshCookie = setCookie?.find((c) => c.startsWith("refreshToken="))?.split(";")[0];
+
+      // Logout
+      const logoutRes = await request(app)
+        .post("/api/auth/logout")
+        .set("Authorization", `Bearer ${registerRes.body.accessToken}`);
+
+      expect(logoutRes.status).toBe(200);
+
+      // Try to use the old refresh token
+      const refreshRes = await request(app)
+        .post("/api/auth/refresh")
+        .set("Cookie", refreshCookie);
+
+      expect(refreshRes.status).toBe(401);
+    });
+  });
+
+  describe("Cookie security attributes", () => {
+    it("sets httpOnly, path, and maxAge on refresh cookie", async () => {
+      const res = await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Cookie Test",
+          email: "cookie@example.com",
+          password: "CookiePass123"
+        });
+
+      const setCookie = res.headers["set-cookie"];
+      const refreshCookie = setCookie?.find((c) => c.startsWith("refreshToken="));
+
+      expect(refreshCookie).toBeDefined();
+      expect(refreshCookie).toContain("HttpOnly");
+      expect(refreshCookie).toContain("Path=/api/auth");
+      expect(refreshCookie).toMatch(/Max-Age=\d+/);
+    });
+  });
+
+  describe("Error handling hardening", () => {
+    it("returns 400 for malformed JSON", async () => {
+      const res = await request(app)
+        .post("/api/auth/login")
+        .set("Content-Type", "application/json")
+        .send("{invalid json");
+
+      expect(res.status).toBe(400);
+    });
+
+    it("returns 401 for tampered access token", async () => {
+      const res = await request(app)
+        .get("/api/auth/me")
+        .set("Authorization", "Bearer invalid.token.here");
+
+      expect(res.status).toBe(401);
+    });
+
+    it("returns 401 for expired access token", async () => {
+      // This is a validly-signed but expired token
+      const expiredToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySWQiOiI2NzVhMWIyYzNkNGU1ZjZhN2I4YzlkMGUiLCJlbWFpbCI6InRlc3RAZXhhbXBsZS5jb20iLCJpYXQiOjE2MDAwMDAwMDAsImV4cCI6MTYwMDAwMDAwMX0.invalid";
+      
+      const res = await request(app)
+        .get("/api/auth/me")
+        .set("Authorization", `Bearer ${expiredToken}`);
+
+      expect(res.status).toBe(401);
     });
   });
 
