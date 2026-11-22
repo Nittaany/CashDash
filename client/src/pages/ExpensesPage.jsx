@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "../context/AuthContext.jsx";
 import { api } from "../api/client.js";
 import { formatMoney, toMinorUnits } from "../utils/currency.js";
+import { ConfirmModal } from "../components/ConfirmModal.jsx";
 import { Loader2, Plus, Trash2, Filter } from "lucide-react";
 
 const PAYMENT_MODES = ["CASH", "BANK", "WALLET", "CARD", "UPI"];
@@ -12,6 +13,7 @@ export function ExpensesPage() {
   const [expenses, setExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, expenseId: null });
 
   // Form state
   const [showForm, setShowForm] = useState(false);
@@ -83,8 +85,13 @@ export function ExpensesPage() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Delete this expense? The amount will be refunded to your wallet.")) return;
+    setDeleteModal({ isOpen: true, expenseId: id });
+  };
 
+  const confirmDelete = async () => {
+    const id = deleteModal.expenseId;
+    setDeleteModal({ isOpen: false, expenseId: null });
+    
     try {
       await api.delete(`/api/expenses/${id}`);
       setExpenses((prev) => prev.filter((e) => e._id !== id));
@@ -266,6 +273,15 @@ export function ExpensesPage() {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="Delete Expense"
+        message="Delete this expense? The amount will be refunded to your wallet."
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteModal({ isOpen: false, expenseId: null })}
+        confirmText="Delete"
+      />
     </div>
   );
 }

@@ -4,6 +4,7 @@ import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import mongoose from "mongoose";
+import crypto from "crypto";
 import { env } from "./config/env.js";
 import { errorHandler } from "./middleware/errorHandler.js";
 import authRoutes from "./routes/auth.routes.js";
@@ -18,6 +19,33 @@ app.set("trust proxy", env.TRUST_PROXY);
 
 // Security middleware
 app.use(helmet());
+
+// Request ID middleware for observability
+app.use((req, res, next) => {
+  const requestId = req.headers["x-request-id"] || crypto.randomUUID();
+  req.requestId = requestId;
+  res.setHeader("X-Request-Id", requestId);
+  next();
+});
+
+// Structured access logging (skip in test environment)
+app.use((req, res, next) => {
+  if (env.NODE_ENV === "test") return next();
+  
+  const start = Date.now();
+  res.on("finish", () => {
+    const log = {
+      level: res.statusCode >= 400 ? "warn" : "info",
+      requestId: req.requestId,
+      method: req.method,
+      path: req.path,
+      status: res.statusCode,
+      durationMs: Date.now() - start
+    };
+    console.log(JSON.stringify(log));
+  });
+  next();
+});
 
 // CORS: support comma-separated origins for dev + prod
 export const allowedOrigins = env.CLIENT_URL.split(",").map((o) => o.trim());
