@@ -32,3 +32,13 @@ yarn-error.log*
 # Ignore specific config files
 
 .vercel
+PROJECT_CONTEXT.md
+
+# Monorepo ignores (root, server/, client/)
+node_modules/
+.env
+.env.*
+!.env.example
+dist/
+coverage/
+PROJECT_CONTEXT.md
