@@ -2,17 +2,16 @@ services:
   - type: web
     name: cashdash-api
     runtime: docker
-    rootDir: server
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    dockerfilePath: "./server/Dockerfile"
+    dockerContext: "./server"
     region: singapore
     plan: free
     healthCheckPath: /api/health
     envVars:
       - key: NODE_ENV
-        value: production
+        value: "production"
       - key: PORT
-        value: 5000
+        value: "5000"
       - key: MONGODB_URI
         sync: false
       - key: JWT_ACCESS_SECRET
@@ -22,8 +21,8 @@ services:
       - key: CLIENT_URL
         sync: false
       - key: TRUST_PROXY
-        value: 2
+        value: "2"
       - key: COOKIE_SECURE
-        value: true
+        value: "true"
       - key: COOKIE_SAMESITE
-        value: lax
+        value: "lax"
