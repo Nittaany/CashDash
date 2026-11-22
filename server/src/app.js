@@ -18,7 +18,20 @@ app.set("trust proxy", 1);
 
 // Security middleware
 app.use(helmet());
-app.use(cors({ origin: env.CLIENT_URL, credentials: true }));
+
+// CORS: support comma-separated origins for dev + prod
+const allowedOrigins = env.CLIENT_URL.split(",").map((o) => o.trim());
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error("Not allowed by CORS"));
+    }
+  },
+  credentials: true
+}));
 app.use(express.json({ limit: "10kb" }));
 app.use(cookieParser());
 
