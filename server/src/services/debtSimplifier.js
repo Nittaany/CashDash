@@ -79,6 +79,9 @@ export function simplifyDebts({ expenses = [], settlements = [] }) {
   debtors.sort((a, b) => b.amountMinor - a.amountMinor || a.userId.localeCompare(b.userId));
   creditors.sort((a, b) => b.amountMinor - a.amountMinor || a.userId.localeCompare(b.userId));
 
+  // Capture totals before mutation
+  const totalOwed = creditors.reduce((sum, c) => sum + c.amountMinor, 0);
+
   const transfers = [];
   let debtorIndex = 0;
   let creditorIndex = 0;
@@ -103,12 +106,11 @@ export function simplifyDebts({ expenses = [], settlements = [] }) {
   }
 
   const netTotal = [...netBalances.values()].reduce((sum, amount) => sum + amount, 0);
-  const transferTotalFrom = transfers.reduce((sum, transfer) => sum - transfer.amountMinor, 0);
-  const transferTotalTo = transfers.reduce((sum, transfer) => sum + transfer.amountMinor, 0);
+  const transferTotal = transfers.reduce((sum, t) => sum + t.amountMinor, 0);
 
   if (netTotal !== 0) throw new Error("net balances must sum to zero");
-  if (transferTotalFrom !== -transferTotalTo) {
-    throw new Error("simplified transfers must conserve balance");
+  if (transferTotal !== totalOwed) {
+    throw new Error("simplified transfers must resolve all debts");
   }
   if (transfers.some((transfer) => transfer.fromUserId === transfer.toUserId)) {
     throw new Error("simplified transfers cannot contain self-transfers");
