@@ -6,6 +6,7 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [serverWaking, setServerWaking] = useState(false);
 
   // Try to restore session on mount
   useEffect(() => {
@@ -13,6 +14,21 @@ export function AuthProvider({ children }) {
 
     async function restoreSession() {
       try {
+        // Check if API is healthy first (handles cold starts)
+        setServerWaking(true);
+        const isHealthy = await checkApiHealth();
+        if (!cancelled) {
+          setServerWaking(false);
+        }
+
+        if (!isHealthy) {
+          // Server not ready yet, but don't block the UI
+          if (!cancelled) {
+            setLoading(false);
+          }
+          return;
+        }
+
         // Try to refresh token (uses HttpOnly cookie)
         const refreshRes = await fetch(
           `${import.meta.env.VITE_API_URL || ""}/api/auth/refresh`,
@@ -34,6 +50,7 @@ export function AuthProvider({ children }) {
       } finally {
         if (!cancelled) {
           setLoading(false);
+          setServerWaking(false);
         }
       }
     }
@@ -58,7 +75,10 @@ export function AuthProvider({ children }) {
 
   const loginDemo = useCallback(async () => {
     // Check if API is awake first
+    setServerWaking(true);
     const isHealthy = await checkApiHealth();
+    setServerWaking(false);
+
     if (!isHealthy) {
       throw new Error("Backend server is waking up. Please try again in a few seconds.");
     }
@@ -88,6 +108,7 @@ export function AuthProvider({ children }) {
   const value = {
     user,
     loading,
+    serverWaking,
     login,
     register,
     loginDemo,

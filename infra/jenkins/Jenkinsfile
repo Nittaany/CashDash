@@ -2,59 +2,73 @@ pipeline {
     agent any
 
     parameters {
-        string(name: 'AWS_CREDENTIALS_ID', description: 'Jenkins AWS credentials ID')
-        string(name: 'S3_BUCKET', description: 'Target S3 bucket')
-        string(name: 'CLOUDFRONT_DIST_ID', description: 'CloudFront distribution ID')
-    }
-
-    environment {
-        NODE_ENV = 'production'
-        REGION = 'ap-south-1'
+        string(name: 'REPO_URL', defaultValue: 'https://github.com/Nittaany/CashDash.git', description: 'Git repository URL')
+        string(name: 'BRANCH', defaultValue: 'main', description: 'Branch to build')
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git branch: 'main', url: 'https://github.com/Nittaany/CashDash.git'
+                git branch: "${params.BRANCH}", url: "${params.REPO_URL}"
             }
         }
 
-        stage('Install Dependencies') {
+        stage('Install Server Dependencies') {
             steps {
-                sh 'npm install --legacy-peer-deps'
-            }
-        }
-
-        stage('Build') {
-            steps {
-                sh 'CI=false npm run build' // bypass ESLint warnings in CI
-            }
-        }
-
-        stage('Deploy to S3') {
-            steps {
-                withAWS(credentials: "${params.AWS_CREDENTIALS_ID}", region: "${REGION}") {
-                    sh """
-                        # Sync build folder to S3 bucket (no ACL, bucket ownership enforced)
-                        aws s3 sync build/ s3://${params.S3_BUCKET}/ --delete
-                        
-                        # Optional: Invalidate CloudFront cache
-                        aws cloudfront create-invalidation --distribution-id ${params.CLOUDFRONT_DIST_ID} --paths "/*"
-                    """
+                dir('server') {
+                    sh 'npm ci'
                 }
+            }
+        }
+
+        stage('Test Server') {
+            steps {
+                dir('server') {
+                    sh 'npm test'
+                }
+            }
+        }
+
+        stage('Install Client Dependencies') {
+            steps {
+                dir('client') {
+                    sh 'npm ci'
+                }
+            }
+        }
+
+        stage('Test Client') {
+            steps {
+                dir('client') {
+                    sh 'npm test'
+                }
+            }
+        }
+
+        stage('Build Client') {
+            steps {
+                dir('client') {
+                    sh 'npm run build'
+                }
+            }
+        }
+
+        stage('Build Docker Images') {
+            steps {
+                sh 'docker compose build'
             }
         }
     }
 
     post {
         always {
-            echo 'Pipeline finished.'
+            cleanWs()
         }
         success {
-            echo 'Deployment succeeded!'
+            echo 'Build completed successfully!'
         }
         failure {
-            echo 'Pipeline failed!'
+            echo 'Build failed!'
         }
     }
 }
