@@ -28,6 +28,23 @@ export function toMinorUnits(input) {
 }
 
 /**
+ * Get locale for currency
+ * @param {string} currency - Currency code
+ * @returns {string} Locale string
+ */
+function getLocaleForCurrency(currency) {
+  switch (currency) {
+    case "INR":
+    case "NPR":
+      return "en-IN";
+    case "USD":
+      return "en-US";
+    default:
+      return "en-IN";
+  }
+}
+
+/**
  * Format minor units to display string
  * @param {number} amountMinor - Amount in minor units
  * @param {string} currency - Currency code (NPR, INR, USD)
@@ -42,7 +59,8 @@ export function formatMoney(amountMinor, currency = "NPR") {
   const whole = Math.floor(absAmount / 100);
   const decimal = (absAmount % 100).toString().padStart(2, "0");
 
-  const formatted = whole.toLocaleString("en-IN");
+  const locale = getLocaleForCurrency(currency);
+  const formatted = whole.toLocaleString(locale);
   const sign = amountMinor < 0 ? "-" : "";
 
   return `${currency} ${sign}${formatted}.${decimal}`;

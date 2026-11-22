@@ -53,6 +53,11 @@ describe("formatMoney", () => {
     expect(formatMoney(1250, "USD")).toBe("USD 12.50");
   });
 
+  it("formats USD large amounts with en-US locale (no lakh grouping)", () => {
+    // USD uses en-US locale: 1,234,567.89 (not 12,34,567.89)
+    expect(formatMoney(123456789, "USD")).toBe("USD 1,234,567.89");
+  });
+
   it("handles zero", () => {
     expect(formatMoney(0, "NPR")).toBe("NPR 0.00");
   });
