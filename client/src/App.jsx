@@ -6,6 +6,8 @@ import { ProtectedRoute } from "./components/ProtectedRoute.jsx";
 import { Navbar } from "./components/Navbar.jsx";
 import { LoginPage } from "./pages/LoginPage.jsx";
 import { RegisterPage } from "./pages/RegisterPage.jsx";
+import { ForgotPasswordPage } from "./pages/ForgotPasswordPage.jsx";
+import { ResetPasswordPage } from "./pages/ResetPasswordPage.jsx";
 import { DashboardPage } from "./pages/DashboardPage.jsx";
 import { ExpensesPage } from "./pages/ExpensesPage.jsx";
 import { GroupsPage } from "./pages/GroupsPage.jsx";
@@ -49,6 +51,8 @@ function AppRoutes() {
     <Routes>
       <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
       <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
+      <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" replace /> : <ForgotPasswordPage />} />
+      <Route path="/reset-password" element={user ? <Navigate to="/dashboard" replace /> : <ResetPasswordPage />} />
       <Route
         path="/dashboard"
         element={

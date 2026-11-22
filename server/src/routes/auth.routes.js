@@ -10,6 +10,7 @@ import { validate } from "../middleware/validate.js";
 import { authenticate, blockDemoUser } from "../middleware/auth.js";
 import { authRateLimiter, demoRateLimiter } from "../middleware/rateLimit.js";
 import { createEphemeralDemoUser } from "../services/demoSeed.js";
+import { sendPasswordResetEmail } from "../services/mailer.js";
 
 const router = Router();
 
@@ -33,6 +34,15 @@ const updateProfileSchema = z.strictObject({
   phone: z.string().max(20).optional(),
   paymentHandle: z.string().max(100).optional(),
   currency: z.enum(["NPR", "INR", "USD"]).optional()
+});
+
+const forgotPasswordSchema = z.strictObject({
+  email: z.email().max(255).toLowerCase()
+});
+
+const resetPasswordSchema = z.strictObject({
+  token: z.string().min(1),
+  newPassword: z.string().min(8).max(72).regex(/[a-zA-Z]/, "must contain a letter").regex(/[0-9]/, "must contain a number")
 });
 
 // Token helpers
@@ -252,6 +262,79 @@ router.patch("/me", authenticate, blockDemoUser, validate({ body: updateProfileS
     }
 
     res.json({ user: safeUserResponse(user) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/auth/forgot-password
+router.post("/forgot-password", authRateLimiter, validate({ body: forgotPasswordSchema }), async (req, res, next) => {
+  try {
+    const { email } = req.validated.body;
+
+    // Always return success to prevent email enumeration
+    const genericResponse = { message: "If an account exists for that email, a reset link has been sent." };
+
+    const user = await User.findOne({ email });
+    
+    // Don't generate tokens for non-existent users or demo users
+    if (!user || user.isDemo) {
+      return res.json(genericResponse);
+    }
+
+    // Generate 32-byte random token
+    const resetToken = crypto.randomBytes(32).toString("hex");
+    const resetTokenHash = crypto.createHash("sha256").update(resetToken).digest("hex");
+    const resetTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+    // Store hashed token and expiry
+    user.resetTokenHash = resetTokenHash;
+    user.resetTokenExpiresAt = resetTokenExpiresAt;
+    await user.save();
+
+    // Send email (uses mock transport in dev/test)
+    await sendPasswordResetEmail(email, resetToken);
+
+    res.json(genericResponse);
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/auth/reset-password
+router.post("/reset-password", authRateLimiter, validate({ body: resetPasswordSchema }), async (req, res, next) => {
+  try {
+    const { token, newPassword } = req.validated.body;
+
+    // Hash the incoming token
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+    // Find user with matching non-expired token
+    const user = await User.findOne({
+      resetTokenExpiresAt: { $gt: new Date() }
+    }).select("+resetTokenHash +resetTokenExpiresAt +refreshTokenHash");
+
+    if (!user || !user.resetTokenHash) {
+      throw new AppError(400, "Invalid or expired reset token");
+    }
+
+    // Constant-time comparison
+    const storedHash = Buffer.from(user.resetTokenHash, "hex");
+    const incomingHash = Buffer.from(tokenHash, "hex");
+    
+    if (storedHash.length !== incomingHash.length || !crypto.timingSafeEqual(storedHash, incomingHash)) {
+      throw new AppError(400, "Invalid or expired reset token");
+    }
+
+    // Update password and clear reset token
+    user.passwordHash = await bcrypt.hash(newPassword, 10);
+    user.resetTokenHash = null;
+    user.resetTokenExpiresAt = null;
+    // Revoke active refresh token to force re-login
+    user.refreshTokenHash = null;
+    await user.save();
+
+    res.json({ message: "Password reset successfully. Please log in with your new password." });
   } catch (error) {
     next(error);
   }

@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { api } from "../api/client.js";
 import { formatMoney, toMinorUnits } from "../utils/currency.js";
+import { ConfirmModal } from "../components/ConfirmModal.jsx";
+import { PaymentQRModal } from "../components/PaymentQRModal.jsx";
 import {
   Loader2,
   Plus,
@@ -11,7 +13,8 @@ import {
   UserPlus,
   Copy,
   Check,
-  ArrowRight
+  ArrowRight,
+  QrCode
 } from "lucide-react";
 
 export function GroupDetailPage() {
@@ -22,6 +25,8 @@ export function GroupDetailPage() {
   const [summary, setSummary] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, expenseId: null });
+  const [paymentModal, setPaymentModal] = useState({ isOpen: false, payee: null, amountMinor: 0 });
 
   // Add member form
   const [showAddMember, setShowAddMember] = useState(false);
@@ -144,8 +149,13 @@ export function GroupDetailPage() {
   };
 
   const handleDeleteExpense = async (expenseId) => {
-    if (!confirm("Delete this expense?")) return;
+    setDeleteModal({ isOpen: true, expenseId });
+  };
 
+  const confirmDeleteExpense = async () => {
+    const expenseId = deleteModal.expenseId;
+    setDeleteModal({ isOpen: false, expenseId: null });
+    
     try {
       await api.delete(`/api/groups/${groupId}/expenses/${expenseId}`);
       await loadSummary();
@@ -365,6 +375,19 @@ export function GroupDetailPage() {
                     <span className="font-medium text-slate-100">
                       {formatMoney(transfer.amountMinor, group?.currency)}
                     </span>
+                    {isYou && toMember?.paymentHandle && (
+                      <button
+                        onClick={() => setPaymentModal({ 
+                          isOpen: true, 
+                          payee: toMember, 
+                          amountMinor: transfer.amountMinor 
+                        })}
+                        className="p-1 text-slate-400 hover:text-emerald-400"
+                        title="Show payment QR"
+                      >
+                        <QrCode className="w-4 h-4" />
+                      </button>
+                    )}
                     {toMember?.paymentHandle && (
                       <button
                         onClick={() => copyToClipboard(toMember.paymentHandle, toMember._id)}
@@ -558,6 +581,24 @@ export function GroupDetailPage() {
           </div>
         )}
       </div>
+
+      <ConfirmModal
+        isOpen={deleteModal.isOpen}
+        title="Delete Expense"
+        message="Delete this expense? This will recalculate group balances."
+        onConfirm={confirmDeleteExpense}
+        onCancel={() => setDeleteModal({ isOpen: false, expenseId: null })}
+        confirmText="Delete"
+      />
+
+      <PaymentQRModal
+        isOpen={paymentModal.isOpen}
+        onClose={() => setPaymentModal({ isOpen: false, payee: null, amountMinor: 0 })}
+        payeeHandle={paymentModal.payee?.paymentHandle || ""}
+        payeeName={paymentModal.payee?.name || ""}
+        amountMinor={paymentModal.amountMinor}
+        currency={group?.currency || "NPR"}
+      />
     </div>
   );
 }

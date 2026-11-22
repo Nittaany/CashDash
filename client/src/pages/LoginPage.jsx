@@ -98,6 +98,11 @@ export function LoginPage() {
               required
               className="w-full"
             />
+            <div className="mt-1 text-right">
+              <Link to="/forgot-password" className="text-sm text-emerald-500 hover:text-emerald-400">
+                Forgot password?
+              </Link>
+            </div>
           </div>
 
           <button
