@@ -10,6 +10,7 @@ describe("CLIENT_URL validation", () => {
   it("accepts a valid pair of origins", () => {
     expect(() => clientUrlSchema.parse("http://localhost:3000, https://cashdash.example.com")).not.toThrow();
     expect(() => clientUrlSchema.parse("http://localhost:3000,https://example.com")).not.toThrow();
+    expect(() => clientUrlSchema.parse("http://localhost:3000,https://a.example.com")).not.toThrow();
   });
 
   it("rejects non-URL entry in list", () => {
