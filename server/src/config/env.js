@@ -35,7 +35,12 @@ const envSchema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   TRUST_PROXY: z.coerce.number().int().min(0).default(1),
   COOKIE_SECURE: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
-  COOKIE_SAMESITE: z.enum(["strict", "lax", "none"]).default("lax")
+  COOKIE_SAMESITE: z.enum(["strict", "lax", "none"]).default("lax"),
+  // Optional Resend mailer config
+  RESEND_API_KEY: z.string().optional(),
+  MAIL_FROM: z.string().default("CashDash <onboarding@resend.dev>"),
+  // Email verification toggle (default false in dev/test, enable in production)
+  REQUIRE_EMAIL_VERIFICATION: z.enum(["true", "false"]).default("false").transform((v) => v === "true")
 });
 
 export const env = envSchema.parse(process.env);

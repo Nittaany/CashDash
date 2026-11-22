@@ -10,7 +10,7 @@ import { validate } from "../middleware/validate.js";
 import { authenticate, blockDemoUser } from "../middleware/auth.js";
 import { authRateLimiter, demoRateLimiter } from "../middleware/rateLimit.js";
 import { createEphemeralDemoUser } from "../services/demoSeed.js";
-import { sendPasswordResetEmail } from "../services/mailer.js";
+import { sendPasswordResetEmail, sendVerificationEmail } from "../services/mailer.js";
 
 const router = Router();
 
@@ -43,6 +43,14 @@ const forgotPasswordSchema = z.strictObject({
 const resetPasswordSchema = z.strictObject({
   token: z.string().min(1),
   newPassword: z.string().min(8).max(72).regex(/[a-zA-Z]/, "must contain a letter").regex(/[0-9]/, "must contain a number")
+});
+
+const verifyEmailSchema = z.strictObject({
+  token: z.string().min(1)
+});
+
+const resendVerificationSchema = z.strictObject({
+  email: z.email().max(255).toLowerCase()
 });
 
 // Token helpers
@@ -100,6 +108,7 @@ function safeUserResponse(user) {
     currency: user.currency,
     walletBalanceMinor: user.walletBalanceMinor,
     isDemo: user.isDemo,
+    isEmailVerified: user.isEmailVerified,
     createdAt: user.createdAt
   };
 }
@@ -110,14 +119,26 @@ router.post("/register", authRateLimiter, validate({ body: registerSchema }), as
     const { name, email, password, phone, paymentHandle, currency } = req.validated.body;
 
     const passwordHash = await bcrypt.hash(password, 10);
+    
+    // Generate email verification token
+    const verifyToken = crypto.randomBytes(32).toString("hex");
+    const emailVerifyTokenHash = crypto.createHash("sha256").update(verifyToken).digest("hex");
+    const emailVerifyExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
     const user = await User.create({
       name,
       email,
       passwordHash,
       phone,
       paymentHandle,
-      currency
+      currency,
+      isEmailVerified: false,
+      emailVerifyTokenHash,
+      emailVerifyExpiresAt
     });
+
+    // Send verification email
+    await sendVerificationEmail(email, verifyToken);
 
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
@@ -127,7 +148,11 @@ router.post("/register", authRateLimiter, validate({ body: registerSchema }), as
     await user.save();
 
     setRefreshCookie(res, refreshToken);
-    res.status(201).json({ accessToken, user: safeUserResponse(user) });
+    res.status(201).json({ 
+      accessToken, 
+      user: safeUserResponse(user),
+      message: "Registration successful. Please check your email to verify your account."
+    });
   } catch (error) {
     next(error);
   }
@@ -150,6 +175,11 @@ router.post("/login", authRateLimiter, validate({ body: loginSchema }), async (r
       throw new AppError(401, "Invalid credentials");
     }
 
+    // Check email verification if required (skip for demo users)
+    if (env.REQUIRE_EMAIL_VERIFICATION && !user.isDemo && !user.isEmailVerified) {
+      throw new AppError(403, "Please verify your email before logging in");
+    }
+
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
@@ -168,6 +198,9 @@ router.post("/demo", demoRateLimiter, async (req, res, next) => {
   try {
     const user = await createEphemeralDemoUser();
 
+    // Demo users are auto-verified
+    user.isEmailVerified = true;
+    
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
 
@@ -335,6 +368,76 @@ router.post("/reset-password", authRateLimiter, validate({ body: resetPasswordSc
     await user.save();
 
     res.json({ message: "Password reset successfully. Please log in with your new password." });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/auth/verify-email
+router.post("/verify-email", authRateLimiter, validate({ body: verifyEmailSchema }), async (req, res, next) => {
+  try {
+    const { token } = req.validated.body;
+
+    // Hash the incoming token
+    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+
+    // Find user with matching non-expired token
+    const user = await User.findOne({
+      emailVerifyExpiresAt: { $gt: new Date() }
+    }).select("+emailVerifyTokenHash +emailVerifyExpiresAt");
+
+    if (!user || !user.emailVerifyTokenHash) {
+      throw new AppError(400, "Invalid or expired verification token");
+    }
+
+    // Constant-time comparison
+    const storedHash = Buffer.from(user.emailVerifyTokenHash, "hex");
+    const incomingHash = Buffer.from(tokenHash, "hex");
+    
+    if (storedHash.length !== incomingHash.length || !crypto.timingSafeEqual(storedHash, incomingHash)) {
+      throw new AppError(400, "Invalid or expired verification token");
+    }
+
+    // Mark email as verified and clear token
+    user.isEmailVerified = true;
+    user.emailVerifyTokenHash = null;
+    user.emailVerifyExpiresAt = null;
+    await user.save();
+
+    res.json({ message: "Email verified successfully. You can now log in." });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/auth/resend-verification
+router.post("/resend-verification", authRateLimiter, validate({ body: resendVerificationSchema }), async (req, res, next) => {
+  try {
+    const { email } = req.validated.body;
+
+    // Always return success to prevent email enumeration
+    const genericResponse = { message: "If an unverified account exists for that email, a new verification link has been sent." };
+
+    const user = await User.findOne({ email, isEmailVerified: false });
+    
+    // Don't send if user doesn't exist, is already verified, or is a demo user
+    if (!user || user.isDemo) {
+      return res.json(genericResponse);
+    }
+
+    // Generate new verification token
+    const verifyToken = crypto.randomBytes(32).toString("hex");
+    const emailVerifyTokenHash = crypto.createHash("sha256").update(verifyToken).digest("hex");
+    const emailVerifyExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+    user.emailVerifyTokenHash = emailVerifyTokenHash;
+    user.emailVerifyExpiresAt = emailVerifyExpiresAt;
+    await user.save();
+
+    // Send verification email
+    await sendVerificationEmail(email, verifyToken);
+
+    res.json(genericResponse);
   } catch (error) {
     next(error);
   }

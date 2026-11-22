@@ -8,6 +8,7 @@ import { LoginPage } from "./pages/LoginPage.jsx";
 import { RegisterPage } from "./pages/RegisterPage.jsx";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage.jsx";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage.jsx";
+import { VerifyEmailPage } from "./pages/VerifyEmailPage.jsx";
 import { DashboardPage } from "./pages/DashboardPage.jsx";
 import { ExpensesPage } from "./pages/ExpensesPage.jsx";
 import { GroupsPage } from "./pages/GroupsPage.jsx";
@@ -53,6 +54,7 @@ function AppRoutes() {
       <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
       <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" replace /> : <ForgotPasswordPage />} />
       <Route path="/reset-password" element={user ? <Navigate to="/dashboard" replace /> : <ResetPasswordPage />} />
+      <Route path="/verify-email" element={<VerifyEmailPage />} />
       <Route
         path="/dashboard"
         element={

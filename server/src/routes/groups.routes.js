@@ -55,6 +55,16 @@ const expenseIdParamsSchema = z.strictObject({
   expenseId: objectIdSchema
 });
 
+const memberIdParamsSchema = z.strictObject({
+  groupId: objectIdSchema,
+  memberId: objectIdSchema
+});
+
+const paginationQuerySchema = z.object({
+  page: z.coerce.number().int().positive().default(1),
+  limit: z.coerce.number().int().positive().max(100).default(20)
+});
+
 // Helper: verify user is group member
 async function verifyGroupMember(groupId, userId) {
   if (!mongoose.Types.ObjectId.isValid(groupId)) {
@@ -205,21 +215,103 @@ router.post("/:groupId/members", authenticate, validate({ body: addMemberSchema,
   }
 });
 
-// GET /api/groups/:groupId/summary - Get group summary with simplified debts
-router.get("/:groupId/summary", authenticate, validate({ params: groupIdParamsSchema }), async (req, res, next) => {
+// DELETE /api/groups/:groupId/members/:memberId - Remove member from group (safe removal)
+router.delete("/:groupId/members/:memberId", authenticate, validate({ params: memberIdParamsSchema }), async (req, res, next) => {
   try {
-    const { groupId } = req.validated.params;
+    const { groupId, memberId } = req.validated.params;
     const group = await verifyGroupMember(groupId, req.user.userId);
-    await group.populate("members", "_id name email paymentHandle");
 
+    // Only group creator can remove others; anyone can leave (remove themselves)
+    const isCreator = group.createdBy.toString() === req.user.userId;
+    const isSelf = memberId === req.user.userId;
+
+    if (!isCreator && !isSelf) {
+      throw new AppError(403, "Only the group creator can remove other members");
+    }
+
+    // Creator cannot leave if they are the only member
+    if (isSelf && isCreator && group.members.length === 1) {
+      throw new AppError(400, "Cannot leave group as the only member. Delete the group instead.");
+    }
+
+    // Check if member exists in group
+    if (!group.members.some((m) => m.toString() === memberId)) {
+      throw new AppError(404, "Member not found in group");
+    }
+
+    // Load expenses and settlements to check balance
     const [expenses, settlements] = await Promise.all([
-      GroupExpense.find({ groupId }).populate("payerId", "_id name email"),
+      GroupExpense.find({ groupId }),
       Settlement.find({ groupId })
     ]);
 
-    // Compute simplified debts
-    const expensesForCalc = expenses.map((e) => ({
-      payerId: e.payerId._id.toString(),
+    // Calculate net balance for the member being removed
+    let netBalance = 0;
+    for (const expense of expenses) {
+      const payerId = expense.payerId.toString();
+      for (const split of expense.splits) {
+        const splitUserId = split.userId.toString();
+        if (splitUserId === memberId && payerId !== memberId) {
+          // Member owes money
+          netBalance -= split.amountMinor;
+        }
+        if (payerId === memberId && splitUserId !== memberId) {
+          // Member is owed money
+          netBalance += split.amountMinor;
+        }
+      }
+    }
+    for (const settlement of settlements) {
+      if (settlement.fromUserId.toString() === memberId) {
+        netBalance += settlement.amountMinor;
+      }
+      if (settlement.toUserId.toString() === memberId) {
+        netBalance -= settlement.amountMinor;
+      }
+    }
+
+    // Cannot remove member with non-zero balance
+    if (netBalance !== 0) {
+      const direction = netBalance > 0 ? "is owed" : "owes";
+      const amount = Math.abs(netBalance);
+      throw new AppError(409, `Cannot remove member: they ${direction} ${amount / 100} ${group.currency}. Settle all debts first.`);
+    }
+
+    // Remove member
+    await Group.findByIdAndUpdate(groupId, { $pull: { members: memberId } });
+
+    const updatedGroup = await Group.findById(groupId).populate("members", "_id name email paymentHandle");
+    res.json({ group: updatedGroup, message: "Member removed successfully" });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// GET /api/groups/:groupId/summary - Get group summary with simplified debts
+router.get("/:groupId/summary", authenticate, validate({ params: groupIdParamsSchema, query: paginationQuerySchema }), async (req, res, next) => {
+  try {
+    const { groupId } = req.validated.params;
+    const { page, limit } = req.validated.query;
+    const group = await verifyGroupMember(groupId, req.user.userId);
+    await group.populate("members", "_id name email paymentHandle");
+
+    // Get total count for pagination
+    const totalExpenses = await GroupExpense.countDocuments({ groupId });
+
+    // Always load ALL expenses and settlements for balance calculation (critical for accuracy)
+    const [allExpenses, settlements, paginatedExpenses] = await Promise.all([
+      GroupExpense.find({ groupId }).select("payerId amountMinor splits"),
+      Settlement.find({ groupId }),
+      GroupExpense.find({ groupId })
+        .populate("payerId", "_id name email")
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+    ]);
+
+    // Compute simplified debts from ALL expenses (not just paginated)
+    const expensesForCalc = allExpenses.map((e) => ({
+      payerId: e.payerId.toString(),
       amountMinor: e.amountMinor,
       splits: e.splits.map((s) => ({
         userId: s.userId.toString(),
@@ -258,10 +350,16 @@ router.get("/:groupId/summary", authenticate, validate({ params: groupIdParamsSc
 
     res.json({
       group,
-      expenses,
+      expenses: paginatedExpenses,
       settlements,
       netBalances,
-      simplifiedTransfers
+      simplifiedTransfers,
+      pagination: {
+        page,
+        limit,
+        totalExpenses,
+        totalPages: Math.ceil(totalExpenses / limit)
+      }
     });
   } catch (error) {
     next(error);

@@ -13,4 +13,7 @@ const groupSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Compound index for listing user's groups sorted by recent activity
+groupSchema.index({ members: 1, updatedAt: -1 });
+
 export default mongoose.models.Group || mongoose.model("Group", groupSchema);
