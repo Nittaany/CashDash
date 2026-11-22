@@ -1,4 +1,5 @@
-import { Routes, Route, Navigate } from "react-router-dom";
+import { useEffect } from "react";
+import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { Toast } from "./components/Toast.jsx";
 import { ProtectedRoute } from "./components/ProtectedRoute.jsx";
@@ -13,7 +14,17 @@ import { ProfilePage } from "./pages/ProfilePage.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
 
 function AppRoutes() {
-  const { user, loading, serverWaking } = useAuth();
+  const { user, loading, serverWaking, demoSessionEnded, clearDemoSessionEnded } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // Redirect to login with message when demo session ends
+  useEffect(() => {
+    if (demoSessionEnded && location.pathname !== "/login") {
+      clearDemoSessionEnded();
+      navigate("/login", { state: { message: "Demo session ended" } });
+    }
+  }, [demoSessionEnded, location.pathname, navigate, clearDemoSessionEnded]);
 
   if (serverWaking) {
     return (
