@@ -12,5 +12,4 @@ const personalExpenseSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-export const PersonalExpense =
-  mongoose.models.PersonalExpense || mongoose.model("PersonalExpense", personalExpenseSchema);
+export default mongoose.models.PersonalExpense || mongoose.model("PersonalExpense", personalExpenseSchema);
