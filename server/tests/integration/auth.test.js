@@ -168,6 +168,33 @@ describe("Auth Routes", () => {
       expect(res.body.accessToken).toBeDefined();
     });
 
+    it("rotates refresh token - old token rejected after refresh", async () => {
+      const registerRes = await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Rotation Test",
+          email: "rotation@example.com",
+          password: "RotationPass123"
+        });
+
+      const setCookie = registerRes.headers["set-cookie"];
+      const oldCookie = setCookie?.find((c) => c.startsWith("refreshToken="))?.split(";")[0];
+
+      // First refresh - should succeed and rotate token
+      const refresh1 = await request(app)
+        .post("/api/auth/refresh")
+        .set("Cookie", oldCookie);
+
+      expect(refresh1.status).toBe(200);
+
+      // Second refresh with OLD cookie - should fail (token was rotated)
+      const refresh2 = await request(app)
+        .post("/api/auth/refresh")
+        .set("Cookie", oldCookie);
+
+      expect(refresh2.status).toBe(401);
+    });
+
     it("returns 401 without refresh cookie", async () => {
       const res = await request(app).post("/api/auth/refresh");
       expect(res.status).toBe(401);
