@@ -45,7 +45,7 @@ function AppRoutes() {
       <div className="min-h-[80vh] flex items-center justify-center">
         <div className="text-center">
           <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-          <div className="text-slate-500 text-sm">Loading...</div>
+          <div className="text-slate-500 text-sm">Loading…</div>
         </div>
       </div>
     );
@@ -53,9 +53,9 @@ function AppRoutes() {
 
   return (
     <>
-      <ServerWakeIndicator 
-        isWaking={serverWaking} 
-        onDismiss={() => setShowWakeIndicator(false)} 
+      <ServerWakeIndicator
+        isWaking={serverWaking}
+        onDismiss={() => setShowWakeIndicator(false)}
       />
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
@@ -113,9 +113,9 @@ function AppRoutes() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-slate-950 flex flex-col">
+      <div className="min-h-screen flex flex-col relative" style={{ backgroundColor: "var(--color-canvas)" }}>
         <Navbar />
-        <main className="container mx-auto px-4 py-6 flex-1">
+        <main className="container mx-auto px-4 py-6 flex-1 relative z-10">
           <AppRoutes />
         </main>
         <Footer />

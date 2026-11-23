@@ -33,11 +33,11 @@ export function ProfilePage() {
   };
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
-      <h1 className="text-2xl font-bold text-slate-100">Profile</h1>
+    <div className="max-w-2xl mx-auto space-y-6 animate-fade-up">
+      <h1>Profile</h1>
 
       {user?.isDemo && (
-        <div className="flex items-center gap-3 p-4 bg-amber-900/30 border border-amber-700 rounded-lg">
+        <div className="alert alert-warning">
           <AlertCircle className="w-5 h-5 text-amber-500 flex-shrink-0" />
           <div>
             <p className="text-amber-200 font-medium">Demo Account</p>
@@ -47,20 +47,20 @@ export function ProfilePage() {
       )}
 
       {error && (
-        <div className="p-3 bg-rose-900/50 border border-rose-700 rounded-lg text-rose-200">
-          {error}
+        <div className="alert alert-error">
+          <span>{error}</span>
         </div>
       )}
 
       {success && (
-        <div className="p-3 bg-emerald-900/50 border border-emerald-700 rounded-lg text-emerald-200">
-          {success}
+        <div className="alert alert-success">
+          <span>{success}</span>
         </div>
       )}
 
       <div className="card">
         <div className="flex items-center gap-4 mb-6">
-          <div className="p-4 bg-slate-800 rounded-full">
+          <div className="p-4 bg-white/[0.04] rounded-full border border-white/[0.06]">
             <User className="w-8 h-8 text-emerald-500" />
           </div>
           <div>

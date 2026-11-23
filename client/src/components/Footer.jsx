@@ -2,7 +2,9 @@ import { Github, ExternalLink } from "lucide-react";
 
 export function Footer() {
   return (
-    <footer className="border-t border-slate-800/30 mt-auto">
+    <footer className="mt-auto relative">
+      {/* Subtle top divider gradient */}
+      <div className="h-px bg-gradient-to-r from-transparent via-white/[0.06] to-transparent" />
       <div className="container mx-auto px-4 py-5">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
           <p className="text-slate-500">

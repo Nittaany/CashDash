@@ -2,44 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
-/* 
+/*
  * CashDash Design System
- * Philosophy: Warm, intentional, quiet confidence
- * Palette: Slate base, emerald accent, warm neutrals
+ * Atmospheric fintech — obsidian canvas, restrained emerald accent
  */
 
 :root {
-  --color-surface: 15 23 42;      /* slate-900 */
-  --color-surface-raised: 30 41 59; /* slate-800 */
-  --color-accent: 16 185 129;     /* emerald-500 */
-  --color-text: 248 250 252;      /* slate-50 */
-  --color-text-muted: 148 163 184; /* slate-400 */
+  --color-canvas: #07090d;
+  --color-surface: 12 16 24;
+  --color-surface-raised: 20 27 42;
+  --color-accent: 16 185 129;
+  --color-text: 248 250 252;
+  --color-text-muted: 148 163 184;
 }
 
 /* Base */
 body {
-  @apply bg-slate-950 text-slate-50 antialiased;
+  background-color: var(--color-canvas);
+  @apply text-slate-50 antialiased;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
-/* Typography scale - tighter, more intentional */
+/* Atmospheric ambient glow — restrained top-edge emerald/teal */
+#root {
+  position: relative;
+}
+#root::before {
+  content: "";
+  position: fixed;
+  top: -180px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  height: 500px;
+  background: radial-gradient(
+    ellipse at center,
+    rgba(16, 185, 129, 0.06) 0%,
+    rgba(20, 184, 166, 0.03) 40%,
+    transparent 70%
+  );
+  filter: blur(80px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Typography — tighter, higher contrast */
 h1 { @apply text-3xl font-semibold tracking-tight text-slate-50; }
 h2 { @apply text-xl font-medium tracking-tight text-slate-100; }
 h3 { @apply text-base font-medium text-slate-200; }
 
-/* Forms - minimal, functional */
+/* Forms — minimal, functional */
 input, select, textarea {
-  @apply bg-slate-900 border border-slate-700/50 rounded-lg px-4 py-2.5
+  @apply bg-[#0c1017] border border-white/[0.08] rounded-lg px-4 py-2.5
          text-slate-50 placeholder-slate-500
-         focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20
+         focus:outline-none focus:border-emerald-500/40 focus:ring-1 focus:ring-emerald-500/20
          transition-colors duration-150;
 }
 
 input:hover:not(:focus), select:hover:not(:focus) {
-  @apply border-slate-600/50;
+  @apply border-white/[0.14];
 }
 
-/* Buttons - solid, confident */
+/* Buttons — solid, confident */
 button {
   @apply font-medium transition-all duration-150;
 }
@@ -51,13 +75,13 @@ button {
 }
 
 .btn-secondary {
-  @apply bg-slate-800 text-slate-200 px-5 py-2.5 rounded-lg border border-slate-700/50
-         hover:bg-slate-700 hover:border-slate-600/50 active:bg-slate-800;
+  @apply bg-[#0f1520] text-slate-200 px-5 py-2.5 rounded-lg border border-white/[0.08]
+         hover:bg-[#151d2e] hover:border-white/[0.14] active:bg-[#0f1520];
 }
 
 .btn-ghost {
   @apply text-slate-400 px-4 py-2 rounded-lg
-         hover:text-slate-200 hover:bg-slate-800/50;
+         hover:text-slate-200 hover:bg-white/[0.04];
 }
 
 .btn-danger {
@@ -65,24 +89,39 @@ button {
          hover:bg-rose-500 active:bg-rose-700;
 }
 
-/* Cards - subtle elevation */
+/* Cards — subtle elevation on obsidian */
 .card {
-  @apply bg-slate-900/80 border border-slate-800/50 rounded-xl p-6;
+  @apply bg-[#0c1017]/80 border border-white/[0.06] rounded-xl p-6;
 }
 
 .card-interactive {
-  @apply hover:border-slate-700/50 hover:bg-slate-900 transition-colors duration-150 cursor-pointer;
+  @apply hover:border-white/[0.12] hover:bg-[#0f1520] transition-all duration-200 cursor-pointer;
 }
 
-/* Specific UI patterns */
+/* Stat card — primary wallet card gets a top-highlight */
 .stat-card {
-  @apply bg-gradient-to-br from-slate-900 to-slate-900/50 
-         border border-slate-800/30 rounded-xl p-6;
+  @apply relative bg-[#0c1017]/80 border border-white/[0.06] rounded-xl p-6 overflow-hidden;
+}
+.stat-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(16, 185, 129, 0.4),
+    rgba(20, 184, 166, 0.3),
+    transparent
+  );
 }
 
+/* Nav links */
 .nav-link {
   @apply flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm
-         text-slate-400 hover:text-slate-100 hover:bg-slate-800/50
+         text-slate-400 hover:text-slate-100 hover:bg-white/[0.05]
          transition-colors duration-150;
 }
 
@@ -96,7 +135,7 @@ button {
 }
 
 .badge-demo {
-  @apply bg-amber-500/20 text-amber-400 border border-amber-500/20;
+  @apply bg-amber-500/15 text-amber-400 border border-amber-500/20;
 }
 
 /* Alert states */
@@ -118,10 +157,10 @@ button {
 
 /* Divider */
 .divider {
-  @apply border-t border-slate-800/50;
+  @apply border-t border-white/[0.06];
 }
 
-/* Animations - subtle, purposeful */
+/* Animations — subtle, purposeful */
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -137,28 +176,57 @@ button {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Staggered fade-up for cards and list items */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .animate-in {
-  animation: fadeIn 0.2s ease-out;
+  animation: fadeIn 0.25s ease-out both;
 }
 
 .animate-slide-up {
-  animation: slideUp 0.3s ease-out;
+  animation: slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 .animate-slide-down {
-  animation: slideDown 0.3s ease-out;
+  animation: slideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Stagger utility — nth-child delay */
+.stagger-children > :nth-child(1) { animation-delay: 0ms; }
+.stagger-children > :nth-child(2) { animation-delay: 60ms; }
+.stagger-children > :nth-child(3) { animation-delay: 120ms; }
+.stagger-children > :nth-child(4) { animation-delay: 180ms; }
+.stagger-children > :nth-child(5) { animation-delay: 240ms; }
+.stagger-children > :nth-child(6) { animation-delay: 300ms; }
+
+/* Respect reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .animate-in,
+  .animate-slide-up,
+  .animate-slide-down,
+  .animate-fade-up,
+  .stagger-children > * {
+    animation: none !important;
+  }
 }
 
 /* Progress bar */
 .progress-bar {
-  @apply h-1 bg-slate-800 rounded-full overflow-hidden;
+  @apply h-1 bg-white/[0.06] rounded-full overflow-hidden;
 }
 
 .progress-bar-fill {
   @apply h-full bg-emerald-500 rounded-full transition-all duration-500;
 }
 
-/* Scrollbar - minimal */
+/* Scrollbar — minimal */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
@@ -169,21 +237,21 @@ button {
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-700/50 rounded-full;
+  @apply bg-white/[0.08] rounded-full;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-slate-600/50;
+  @apply bg-white/[0.14];
 }
 
 /* Selection */
 ::selection {
-  @apply bg-emerald-500/30;
+  @apply bg-emerald-500/25;
 }
 
 /* Focus visible for accessibility */
 :focus-visible {
-  @apply outline-none ring-2 ring-emerald-500/50 ring-offset-2 ring-offset-slate-950;
+  @apply outline-none ring-2 ring-emerald-500/50 ring-offset-2 ring-offset-[#07090d];
 }
 
 /* Link styling */
@@ -191,12 +259,12 @@ a {
   @apply text-emerald-400 hover:text-emerald-300 transition-colors;
 }
 
-/* Table styling for group details */
+/* Table styling */
 .table-row {
-  @apply border-b border-slate-800/30 last:border-0;
+  @apply border-b border-white/[0.05] last:border-0;
 }
 
 /* Loading skeleton */
 .skeleton {
-  @apply bg-slate-800/50 rounded animate-pulse;
+  @apply bg-white/[0.05] rounded animate-pulse;
 }

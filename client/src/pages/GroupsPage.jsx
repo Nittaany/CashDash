@@ -68,9 +68,9 @@ export function GroupsPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 animate-fade-up">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-slate-100">Groups</h1>
+        <h1>Groups</h1>
         <button onClick={() => setShowForm(!showForm)} className="btn-primary flex items-center gap-2">
           <Plus className="w-4 h-4" />
           Create Group
@@ -78,14 +78,14 @@ export function GroupsPage() {
       </div>
 
       {error && (
-        <div className="p-3 bg-rose-900/50 border border-rose-700 rounded-lg text-rose-200">
-          {error}
+        <div className="alert alert-error">
+          <span>{error}</span>
         </div>
       )}
 
       {/* Create Group Form */}
       {showForm && (
-        <div className="card">
+        <div className="card animate-slide-up">
           <h2 className="text-lg font-semibold text-slate-100 mb-4">New Group</h2>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -153,12 +153,14 @@ export function GroupsPage() {
           <p className="text-slate-400">No groups yet. Create one to start splitting expenses!</p>
         </div>
       ) : (
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid md:grid-cols-2 gap-4 stagger-children">
           {groups.map((group) => (
             <Link
               key={group._id}
               to={`/groups/${group._id}`}
-              className="card hover:border-emerald-600 transition-colors"
+              className="card animate-fade-up border border-white/[0.06]
+                         hover:border-emerald-500/30 hover:bg-[#0f1520] hover:-translate-y-0.5
+                         transition-all duration-200"
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -170,7 +172,7 @@ export function GroupsPage() {
                     {group.members?.length || 0} members · {group.currency}
                   </p>
                 </div>
-                <ArrowRight className="w-5 h-5 text-slate-400" />
+                <ArrowRight className="w-5 h-5 text-slate-500" />
               </div>
             </Link>
           ))}

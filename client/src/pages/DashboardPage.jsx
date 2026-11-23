@@ -80,7 +80,7 @@ export function DashboardPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6 animate-in">
+    <div className="max-w-4xl mx-auto space-y-6 animate-fade-up">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <div>
@@ -96,16 +96,16 @@ export function DashboardPage() {
         </div>
       )}
 
-      {/* Wallet Card */}
+      {/* Wallet Card — primary, top-highlight via stat-card */}
       <div className="stat-card">
         <div className="flex items-start justify-between mb-6">
           <div>
             <p className="text-slate-500 text-sm mb-1">Wallet Balance</p>
-            <p className="text-3xl font-semibold text-slate-50 tabular-nums">
+            <p className="text-3xl font-semibold text-slate-50 tabular-nums tracking-tight">
               {formatMoney(walletData?.walletBalanceMinor || 0, user?.currency)}
             </p>
           </div>
-          <div className="p-2.5 bg-emerald-500/10 rounded-lg">
+          <div className="p-2.5 bg-emerald-500/10 rounded-lg border border-emerald-500/20">
             <Wallet className="w-5 h-5 text-emerald-500" />
           </div>
         </div>
@@ -130,14 +130,14 @@ export function DashboardPage() {
       </div>
 
       {/* Grid */}
-      <div className="grid md:grid-cols-2 gap-4">
+      <div className="grid md:grid-cols-2 gap-4 stagger-children">
         {/* Monthly Summary */}
-        <div className="card">
+        <div className="card animate-fade-up">
           <div className="flex items-center gap-2 mb-4">
             <TrendingUp className="w-4 h-4 text-emerald-500" />
             <h2 className="text-base">This Month</h2>
           </div>
-          <p className="text-2xl font-semibold text-slate-50 mb-4 tabular-nums">
+          <p className="text-2xl font-semibold text-slate-50 mb-4 tabular-nums tracking-tight">
             {formatMoney(walletData?.monthlySummary?.totalSpentMinor || 0, user?.currency)}
           </p>
 
@@ -152,7 +152,7 @@ export function DashboardPage() {
                       <span className="text-slate-400">{category}</span>
                       <span className="text-slate-500 tabular-nums">{percent}%</span>
                     </div>
-                    <div className="h-1 bg-slate-800 rounded-full overflow-hidden">
+                    <div className="h-1 bg-white/[0.06] rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full ${categoryColors[category] || categoryColors.Other}`}
                         style={{ width: `${percent}%` }}
@@ -168,16 +168,17 @@ export function DashboardPage() {
         </div>
 
         {/* Quick Actions */}
-        <div className="card">
+        <div className="card animate-fade-up">
           <h2 className="text-base mb-4">Quick Actions</h2>
           <div className="space-y-2">
             <Link
               to="/expenses"
-              className="flex items-center justify-between p-3 rounded-lg bg-slate-800/30 
-                         hover:bg-slate-800/50 transition-colors group"
+              className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] border border-transparent
+                         hover:bg-white/[0.04] hover:border-white/[0.08] hover:-translate-y-0.5
+                         transition-all duration-200 group"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-slate-800 rounded-lg group-hover:bg-slate-700 transition-colors">
+                <div className="p-2 bg-white/[0.04] rounded-lg border border-white/[0.06] group-hover:border-emerald-500/20 transition-colors">
                   <Receipt className="w-4 h-4 text-emerald-500" />
                 </div>
                 <span className="text-slate-200 text-sm">Add Expense</span>
@@ -186,11 +187,12 @@ export function DashboardPage() {
             </Link>
             <Link
               to="/groups"
-              className="flex items-center justify-between p-3 rounded-lg bg-slate-800/30 
-                         hover:bg-slate-800/50 transition-colors group"
+              className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] border border-transparent
+                         hover:bg-white/[0.04] hover:border-white/[0.08] hover:-translate-y-0.5
+                         transition-all duration-200 group"
             >
               <div className="flex items-center gap-3">
-                <div className="p-2 bg-slate-800 rounded-lg group-hover:bg-slate-700 transition-colors">
+                <div className="p-2 bg-white/[0.04] rounded-lg border border-white/[0.06] group-hover:border-emerald-500/20 transition-colors">
                   <Users className="w-4 h-4 text-emerald-500" />
                 </div>
                 <span className="text-slate-200 text-sm">Manage Groups</span>
