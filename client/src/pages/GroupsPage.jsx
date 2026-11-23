@@ -158,9 +158,9 @@ export function GroupsPage() {
             <Link
               key={group._id}
               to={`/groups/${group._id}`}
-              className="card animate-fade-up border border-white/[0.06]
-                         hover:border-emerald-500/30 hover:bg-[#0f1520] hover:-translate-y-0.5
-                         transition-all duration-200"
+              className="card animate-fade-up
+                         hover:border-emerald-400/35 hover:bg-slate-950/65 hover:-translate-y-0.5
+                         transition-all duration-300 ease-out"
             >
               <div className="flex items-center justify-between">
                 <div>

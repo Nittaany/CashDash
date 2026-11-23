@@ -174,8 +174,9 @@ export function DashboardPage() {
             <Link
               to="/expenses"
               className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] border border-transparent
-                         hover:bg-white/[0.04] hover:border-white/[0.08] hover:-translate-y-0.5
-                         transition-all duration-200 group"
+                         hover:bg-white/[0.04] hover:border-emerald-400/35 hover:-translate-y-0.5
+                         active:scale-[0.99]
+                         transition-all duration-300 ease-out group"
             >
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-white/[0.04] rounded-lg border border-white/[0.06] group-hover:border-emerald-500/20 transition-colors">
@@ -188,8 +189,9 @@ export function DashboardPage() {
             <Link
               to="/groups"
               className="flex items-center justify-between p-3 rounded-lg bg-white/[0.02] border border-transparent
-                         hover:bg-white/[0.04] hover:border-white/[0.08] hover:-translate-y-0.5
-                         transition-all duration-200 group"
+                         hover:bg-white/[0.04] hover:border-emerald-400/35 hover:-translate-y-0.5
+                         active:scale-[0.99]
+                         transition-all duration-300 ease-out group"
             >
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-white/[0.04] rounded-lg border border-white/[0.06] group-hover:border-emerald-500/20 transition-colors">

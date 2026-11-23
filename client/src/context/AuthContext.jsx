@@ -103,14 +103,8 @@ export function AuthProvider({ children }) {
   }, []);
 
   const loginDemo = useCallback(async () => {
-    // Check if API is awake first
     beginServerWake();
     try {
-      const isHealthy = await checkApiHealth();
-      if (!isHealthy) {
-        throw new Error("Backend server is waking up. Please try again in a few seconds.");
-      }
-
       const { accessToken, user: userData } = await api.post("/api/auth/demo", {});
       setAccessToken(accessToken, true);
       setUser(userData);

@@ -17,6 +17,7 @@ import { GroupsPage } from "./pages/GroupsPage.jsx";
 import { GroupDetailPage } from "./pages/GroupDetailPage.jsx";
 import { ProfilePage } from "./pages/ProfilePage.jsx";
 import { useAuth } from "./context/AuthContext.jsx";
+import { AmbientShaderBackground } from "./components/AmbientShaderBackground.jsx";
 
 function AppRoutes() {
   const { user, loading, serverWaking, demoSessionEnded, clearDemoSessionEnded } = useAuth();
@@ -105,6 +106,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <div className="min-h-screen flex flex-col relative" style={{ backgroundColor: "var(--color-canvas)" }}>
+        <AmbientShaderBackground />
         <Navbar />
         <main className="container mx-auto px-4 py-6 flex-1 relative z-10">
           <AppRoutes />

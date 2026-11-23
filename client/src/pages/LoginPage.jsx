@@ -85,7 +85,7 @@ export function LoginPage() {
         )}
 
         {/* Auth Card */}
-        <div className="relative rounded-xl border border-white/[0.10] bg-[#0c1017]/75 backdrop-blur-md p-6 mb-6 shadow-[0_24px_80px_rgba(0,0,0,0.28)] before:absolute before:inset-x-8 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-300/30 before:to-transparent">
+        <div className="relative rounded-xl border border-white/[0.10] bg-slate-950/55 backdrop-blur-xl p-6 mb-6 shadow-[0_24px_80px_rgba(0,0,0,0.38),inset_0_1px_0_rgba(255,255,255,0.09)] before:absolute before:inset-x-8 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-300/40 before:to-transparent">
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4 mb-6">
             <div>
@@ -147,7 +147,7 @@ export function LoginPage() {
                        bg-emerald-500 text-[#06110d] border border-emerald-300/40 font-semibold shadow-[0_12px_32px_rgba(16,185,129,0.16)]
                        hover:bg-emerald-400 hover:-translate-y-0.5
                        active:bg-emerald-600 active:translate-y-0
-                       transition-all duration-150"
+                       active:scale-[0.98] transition-all duration-200 ease-out"
           >
             {demoLoading ? (
               <Loader2 className="w-4 h-4 animate-spin" />

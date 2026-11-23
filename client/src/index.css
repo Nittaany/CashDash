@@ -88,12 +88,14 @@ button {
 .btn-primary {
   @apply bg-emerald-600 text-white px-5 py-2.5 rounded-lg
          hover:bg-emerald-500 active:bg-emerald-700
-         disabled:opacity-40 disabled:cursor-not-allowed;
+         active:scale-[0.98] hover:shadow-[0_8px_28px_rgba(16,185,129,0.18)]
+         disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200 ease-out;
 }
 
 .btn-secondary {
   @apply bg-[#0f1520] text-slate-200 px-5 py-2.5 rounded-lg border border-white/[0.08]
-         hover:bg-[#151d2e] hover:border-white/[0.14] active:bg-[#0f1520];
+         hover:bg-[#151d2e] hover:border-white/[0.14] active:bg-[#0f1520] active:scale-[0.98]
+         transition-all duration-200 ease-out;
 }
 
 .btn-ghost {
@@ -108,7 +110,8 @@ button {
 
 /* Cards — subtle elevation on obsidian */
 .card {
-  @apply relative bg-[#0c1017]/85 border border-white/[0.08] rounded-xl p-6;
+  @apply relative bg-slate-950/55 backdrop-blur-xl border border-white/[0.09] rounded-xl p-6
+         shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)];
 }
 
 .card-interactive {
@@ -117,7 +120,8 @@ button {
 
 /* Stat card — primary wallet card gets a top-highlight */
 .stat-card {
-  @apply relative bg-[#0c1017]/80 border border-white/[0.06] rounded-xl p-6 overflow-hidden;
+  @apply relative bg-slate-950/55 backdrop-blur-xl border border-white/[0.09] rounded-xl p-6 overflow-hidden
+         shadow-[inset_0_1px_0_0_rgba(255,255,255,0.08)];
 }
 .stat-card::before {
   content: "";
@@ -278,7 +282,7 @@ button {
 
 /* Focus visible for accessibility */
 :focus-visible {
-  @apply outline-none ring-2 ring-emerald-500/50 ring-offset-2 ring-offset-[#07090d];
+  @apply outline-none ring-2 ring-emerald-400/70 ring-offset-2 ring-offset-[#07090d];
 }
 
 /* Link styling */

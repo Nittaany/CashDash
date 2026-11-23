@@ -48,6 +48,10 @@ describe("AuthContext", () => {
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalledWith("/api/health");
     });
+    await waitFor(() => {
+      expect(screen.getByTestId("loading").textContent).toBe("false");
+    });
+    mockFetch.mockClear();
   });
 
   it("sets serverWaking true during health check", async () => {
@@ -126,5 +130,34 @@ describe("AuthContext", () => {
     await waitFor(() => {
       expect(screen.getByTestId("serverWaking").textContent).toBe("false");
     });
+  });
+
+  it("starts demo login directly without a separate health request", async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false });
+    renderWithAuth();
+
+    await waitFor(() => {
+      expect(mockFetch).toHaveBeenCalledWith("/api/health");
+    });
+
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({
+        accessToken: "demo-token",
+        user: { email: "demo-user@example.com", isDemo: true }
+      })
+    });
+
+    const callsBeforeDemo = mockFetch.mock.calls.length;
+    fireEvent.click(screen.getByText("Try demo"));
+
+    await waitFor(() => {
+      expect(screen.getByTestId("user").textContent).toBe("demo-user@example.com");
+    });
+
+    const demoCalls = mockFetch.mock.calls
+      .slice(callsBeforeDemo)
+      .map(([url]) => url);
+    expect(demoCalls).toEqual(["/api/auth/demo"]);
   });
 });
