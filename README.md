@@ -5,7 +5,7 @@
 ![Node 22](https://img.shields.io/badge/node-22-brightgreen)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> **TL;DR** — A personal wallet and group expense splitter handling NPR, INR, and USD with **integer money math** (no floating-point drift), **ACID transactions** for wallet operations, and **greedy debt simplification** that minimizes transfers. Built with React 19 + Express 5 + MongoDB, deployed on Vercel/Render/Atlas free tiers. Backed by **246 tests (91% coverage)**, 4-job CI pipeline, and **0 secret leaks**.
+> **TL;DR** — A personal wallet and group expense splitter handling NPR, INR, and USD with **integer money math** (no floating-point drift), **ACID transactions** for wallet operations, and **greedy debt simplification** that minimizes transfers. Built with React 19 + Express 5 + MongoDB, deployed on Vercel/Render/Atlas free tiers. Backed by **258 tests (91% coverage)**, 4-job CI pipeline, and **0 secret leaks**.
 
 **[Live Demo](https://cash-dash-one.vercel.app)** — Click "Try Instant Demo" for a pre-seeded sandbox with 25 expenses and 10 groups (no signup, 2h auto-cleanup).
 
@@ -31,7 +31,8 @@
 │   • JWT + HttpOnly cookies        • 1-click instant demo                    │
 │   • Email verification            • UPI QR code generation (INR)            │
 │   • Password reset flow           • Mobile-responsive UI                    │
-│   • Rate limiting                 • Real-time balance updates               │
+│   • Rate limiting                 • Server wake indicator (cold starts)     │
+│                                   • Real-time balance updates               │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
@@ -251,8 +252,8 @@
 │                     TEST SUMMARY                                │
 ├─────────────────────────────────────────────────────────────────┤
 │  Server: 180 tests │ 91.15% statements │ 91.52% lines          │
-│  Client:  66 tests │                                            │
-│  Total:  246 tests │ 0 secret leaks (gitleaks)                  │
+│  Client:  78 tests │                                            │
+│  Total:  258 tests │ 0 secret leaks (gitleaks)                  │
 │  Bundle: 106 kB JS │ 4.3 kB CSS (gzip)                          │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -268,6 +269,8 @@
 | `memberRemoval.test.js` | Safe removal (0 balance required), authorization |
 | `ttl.test.js` | Demo expiry, real users never get `expiresAt` |
 | `PaymentQRModal.test.jsx` | Integer formatting, VPA validation, INR-only QR |
+| `Footer.test.jsx` | Copyright, external links, accessibility |
+| `ServerWakeIndicator.test.jsx` | Wake states, progress timer, auto-dismiss |
 
 ---
 
@@ -357,7 +360,7 @@ stack:
   auth: JWT + SHA-256 hashed refresh cookie (HttpOnly)
 tests:
   server: 180
-  client: 66
+  client: 78
   coverage_statements: 91.15%
   coverage_lines: 91.52%
 bundle_gzip: { js: 106kb, css: 4.3kb }

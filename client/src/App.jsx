@@ -1,9 +1,11 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { ErrorBoundary } from "./components/ErrorBoundary.jsx";
 import { Toast } from "./components/Toast.jsx";
 import { ProtectedRoute } from "./components/ProtectedRoute.jsx";
 import { Navbar } from "./components/Navbar.jsx";
+import { Footer } from "./components/Footer.jsx";
+import { ServerWakeIndicator } from "./components/ServerWakeIndicator.jsx";
 import { LoginPage } from "./pages/LoginPage.jsx";
 import { RegisterPage } from "./pages/RegisterPage.jsx";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage.jsx";
@@ -20,6 +22,14 @@ function AppRoutes() {
   const { user, loading, serverWaking, demoSessionEnded, clearDemoSessionEnded } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [showWakeIndicator, setShowWakeIndicator] = useState(false);
+
+  // Show wake indicator when server is waking
+  useEffect(() => {
+    if (serverWaking) {
+      setShowWakeIndicator(true);
+    }
+  }, [serverWaking]);
 
   // Redirect to login with message when demo session ends
   useEffect(() => {
@@ -29,86 +39,86 @@ function AppRoutes() {
     }
   }, [demoSessionEnded, location.pathname, navigate, clearDemoSessionEnded]);
 
-  if (serverWaking) {
+  // Show loading state only when not waking (wake indicator handles that)
+  if (loading && !serverWaking) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-[80vh] flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-pulse text-emerald-500 text-lg mb-2">Waking server...</div>
-          <div className="text-slate-400 text-sm">Free tier servers sleep after inactivity</div>
+          <div className="w-8 h-8 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <div className="text-slate-400 text-sm">Loading...</div>
         </div>
       </div>
     );
   }
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-slate-400">Loading...</div>
-      </div>
-    );
-  }
-
   return (
-    <Routes>
-      <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
-      <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
-      <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" replace /> : <ForgotPasswordPage />} />
-      <Route path="/reset-password" element={user ? <Navigate to="/dashboard" replace /> : <ResetPasswordPage />} />
-      <Route path="/verify-email" element={<VerifyEmailPage />} />
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <DashboardPage />
-          </ProtectedRoute>
-        }
+    <>
+      <ServerWakeIndicator 
+        isWaking={serverWaking} 
+        onDismiss={() => setShowWakeIndicator(false)} 
       />
-      <Route
-        path="/expenses"
-        element={
-          <ProtectedRoute>
-            <ExpensesPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/groups"
-        element={
-          <ProtectedRoute>
-            <GroupsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/groups/:groupId"
-        element={
-          <ProtectedRoute>
-            <GroupDetailPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/profile"
-        element={
-          <ProtectedRoute>
-            <ProfilePage />
-          </ProtectedRoute>
-        }
-      />
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
-    </Routes>
+      <Routes>
+        <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />
+        <Route path="/register" element={user ? <Navigate to="/dashboard" replace /> : <RegisterPage />} />
+        <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" replace /> : <ForgotPasswordPage />} />
+        <Route path="/reset-password" element={user ? <Navigate to="/dashboard" replace /> : <ResetPasswordPage />} />
+        <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route
+          path="/dashboard"
+          element={
+            <ProtectedRoute>
+              <DashboardPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/expenses"
+          element={
+            <ProtectedRoute>
+              <ExpensesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/groups"
+          element={
+            <ProtectedRoute>
+              <GroupsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/groups/:groupId"
+          element={
+            <ProtectedRoute>
+              <GroupDetailPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <ProtectedRoute>
+              <ProfilePage />
+            </ProtectedRoute>
+          }
+        />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </>
   );
 }
 
 export default function App() {
   return (
     <ErrorBoundary>
-      <div className="min-h-screen bg-slate-950">
+      <div className="min-h-screen bg-slate-950 flex flex-col">
         <Navbar />
-        <main className="container mx-auto px-4 py-6">
+        <main className="container mx-auto px-4 py-6 flex-1">
           <AppRoutes />
         </main>
+        <Footer />
         <Toast />
       </div>
     </ErrorBoundary>
