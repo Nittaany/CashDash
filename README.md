@@ -39,21 +39,6 @@
 
 ---
 
-### Current UI Sprint
-
-The `v2` client is an atmospheric, dark fintech interface built around clear financial hierarchy rather than decorative density:
-
-- **Server wake state:** `/api/health` is the source of truth. Fast responses render no indicator; cold starts show a delayed progress banner after 1.5 seconds and dismiss cleanly after a successful connection.
-- **Instant demo:** the demo action calls `/api/auth/demo` directly, avoiding an unnecessary health round trip before demo seeding.
-- **Visual system:** obsidian surfaces, warm emerald/teal lighting, restrained amber accents, translucent frosted cards, high-contrast typography, and tabular currency figures.
-- **Live atmosphere:** an intentionally lazy-loaded ShaderGradient canvas adds calm animated depth; a visible CSS mesh fallback remains immediate for first paint, reduced-motion users, test mode, and environments without WebGL.
-- **Interaction polish:** tactile button press states, emerald focus rings, elevated quick actions and group cards, animated category fills, staggered entrances, and modal transitions.
-- **Responsive product UI:** floating pill navigation, readable auth surfaces, currency badges, category pills, table hover states, and consistent footer/API status links.
-
-The UI sprint preserves the existing product structure and all financial, authentication, and demo behaviors.
-
----
-
 ## System Architecture
 
 ```
@@ -158,15 +143,15 @@ The UI sprint preserves the existing product structure and all financial, authen
 
 ## Tech Stack
 
-| Layer | Technologies |
-|:------|:-------------|
+| Layer        | Technologies                                                           |
+| :----------- | :--------------------------------------------------------------------- |
 | **Frontend** | React 19, Vite 6, Tailwind CSS 3, React Router 7, ShaderGradient/Three |
-| **Backend** | Node 22, Express 5, Mongoose 8, Zod 4 |
-| **Database** | MongoDB Atlas M0 (replica set for ACID transactions) |
-| **Auth** | JWT (15min) + SHA-256 hashed refresh cookies (7d, HttpOnly) |
-| **Email** | Resend API (mock transport in dev/test) |
-| **DevOps** | Docker multi-stage, GitHub Actions (4 jobs), Vercel, Render |
-| **Testing** | Vitest, Supertest, mongodb-memory-server |
+| **Backend**  | Node 22, Express 5, Mongoose 8, Zod 4                                  |
+| **Database** | MongoDB Atlas M0 (replica set for ACID transactions)                   |
+| **Auth**     | JWT (15min) + SHA-256 hashed refresh cookies (7d, HttpOnly)            |
+| **Email**    | Resend API (mock transport in dev/test)                                |
+| **DevOps**   | Docker multi-stage, GitHub Actions (4 jobs), Vercel, Render            |
+| **Testing**  | Vitest, Supertest, mongodb-memory-server                               |
 
 ---
 
@@ -216,45 +201,45 @@ The UI sprint preserves the existing product structure and all financial, authen
 
 ## API Reference (28 Endpoints)
 
-| Group | Endpoints |
-|:------|:----------|
-| **Auth** | register, login, refresh, logout, demo, me, forgot-password, reset-password, verify-email, resend-verification |
-| **Wallet** | GET balance/summary, POST topup |
-| **Expenses** | GET list (filtered), POST create (atomic debit), DELETE (atomic refund) |
-| **Groups** | CRUD groups, members, expenses, settlements, paginated summary, CSV exports |
+| Group        | Endpoints                                                                                                      |
+| :----------- | :------------------------------------------------------------------------------------------------------------- |
+| **Auth**     | register, login, refresh, logout, demo, me, forgot-password, reset-password, verify-email, resend-verification |
+| **Wallet**   | GET balance/summary, POST topup                                                                                |
+| **Expenses** | GET list (filtered), POST create (atomic debit), DELETE (atomic refund)                                        |
+| **Groups**   | CRUD groups, members, expenses, settlements, paginated summary, CSV exports                                    |
 
 <details>
 <summary><strong>Full endpoint list</strong></summary>
 
-| Endpoint | Method | Description |
-|:---------|:-------|:------------|
-| `/api/auth/register` | POST | Create account + verification email |
-| `/api/auth/login` | POST | Authenticate + set refresh cookie |
-| `/api/auth/refresh` | POST | Rotate refresh token |
-| `/api/auth/logout` | POST | Invalidate session |
-| `/api/auth/demo` | POST | Create 2h ephemeral demo account |
-| `/api/auth/me` | GET | Current profile |
-| `/api/auth/me` | PATCH | Update profile |
-| `/api/auth/forgot-password` | POST | Request reset email |
-| `/api/auth/reset-password` | POST | Reset with 15min SHA-256 token |
-| `/api/auth/verify-email` | POST | Verify with 24h SHA-256 token |
-| `/api/auth/resend-verification` | POST | Resend (anti-enumeration) |
-| `/api/wallet` | GET | Balance + monthly summary |
-| `/api/wallet/topup` | POST | Add funds |
-| `/api/expenses` | GET | List with filters |
-| `/api/expenses` | POST | Create (atomic wallet debit) |
-| `/api/expenses/:id` | DELETE | Delete (atomic refund) |
-| `/api/groups` | GET | User's groups |
-| `/api/groups` | POST | Create group |
-| `/api/groups/:id/members` | POST | Add member |
-| `/api/groups/:id/members/:mid` | DELETE | Remove (requires 0 balance) |
-| `/api/groups/:id/summary` | GET | Balances + transfers (paginated) |
-| `/api/groups/:id/expenses` | POST | Add group expense |
-| `/api/groups/:id/expenses/:eid` | DELETE | Delete expense |
-| `/api/groups/:id/settlements` | POST | Record settlement |
-| `/api/groups/:id/export.csv` | GET | Export expenses |
-| `/api/groups/:id/balances.csv` | GET | Export balances |
-| `/api/health` | GET | DB state, uptime |
+| Endpoint                        | Method | Description                         |
+| :------------------------------ | :----- | :---------------------------------- |
+| `/api/auth/register`            | POST   | Create account + verification email |
+| `/api/auth/login`               | POST   | Authenticate + set refresh cookie   |
+| `/api/auth/refresh`             | POST   | Rotate refresh token                |
+| `/api/auth/logout`              | POST   | Invalidate session                  |
+| `/api/auth/demo`                | POST   | Create 2h ephemeral demo account    |
+| `/api/auth/me`                  | GET    | Current profile                     |
+| `/api/auth/me`                  | PATCH  | Update profile                      |
+| `/api/auth/forgot-password`     | POST   | Request reset email                 |
+| `/api/auth/reset-password`      | POST   | Reset with 15min SHA-256 token      |
+| `/api/auth/verify-email`        | POST   | Verify with 24h SHA-256 token       |
+| `/api/auth/resend-verification` | POST   | Resend (anti-enumeration)           |
+| `/api/wallet`                   | GET    | Balance + monthly summary           |
+| `/api/wallet/topup`             | POST   | Add funds                           |
+| `/api/expenses`                 | GET    | List with filters                   |
+| `/api/expenses`                 | POST   | Create (atomic wallet debit)        |
+| `/api/expenses/:id`             | DELETE | Delete (atomic refund)              |
+| `/api/groups`                   | GET    | User's groups                       |
+| `/api/groups`                   | POST   | Create group                        |
+| `/api/groups/:id/members`       | POST   | Add member                          |
+| `/api/groups/:id/members/:mid`  | DELETE | Remove (requires 0 balance)         |
+| `/api/groups/:id/summary`       | GET    | Balances + transfers (paginated)    |
+| `/api/groups/:id/expenses`      | POST   | Add group expense                   |
+| `/api/groups/:id/expenses/:eid` | DELETE | Delete expense                      |
+| `/api/groups/:id/settlements`   | POST   | Record settlement                   |
+| `/api/groups/:id/export.csv`    | GET    | Export expenses                     |
+| `/api/groups/:id/balances.csv`  | GET    | Export balances                     |
+| `/api/health`                   | GET    | DB state, uptime                    |
 
 </details>
 
@@ -274,34 +259,36 @@ The UI sprint preserves the existing product structure and all financial, authen
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-| Test Suite | What It Covers |
-|:-----------|:---------------|
-| `splitCalculator.test.js` | Integer splits, rounding, percent validation, edge cases |
-| `debtSimplifier.test.js` | Mutual cancellation, transitive chains, partial settlements |
-| `walletAndExpenses.test.js` | Atomic transactions, concurrent operations (10 parallel) |
-| `auth.test.js` | Token rotation, refresh reuse rejection, timing-safe comparison |
-| `groupsAndSettlements.test.js` | Membership checks, settlement validation, optimistic locking |
-| `emailVerification.test.js` | Token verify, single-use rejection, expiry, anti-enumeration |
-| `memberRemoval.test.js` | Safe removal (0 balance required), authorization |
-| `ttl.test.js` | Demo expiry, real users never get `expiresAt` |
-| `PaymentQRModal.test.jsx` | Integer formatting, VPA validation, INR-only QR |
-| `Footer.test.jsx` | Copyright, external links, accessibility |
-| `ServerWakeIndicator.test.jsx` | Wake states, progress timer, auto-dismiss |
-| `AuthContext.test.jsx` | Direct demo login, health state, overlapping wake operations |
-| `LoginPage.test.jsx` | Credentials and one-click instant demo behavior |
-| `AmbientShaderBackground.test.jsx` | Test-mode CSS fallback without WebGL |
+| Test Suite                         | What It Covers                                                  |
+| :--------------------------------- | :-------------------------------------------------------------- |
+| `splitCalculator.test.js`          | Integer splits, rounding, percent validation, edge cases        |
+| `debtSimplifier.test.js`           | Mutual cancellation, transitive chains, partial settlements     |
+| `walletAndExpenses.test.js`        | Atomic transactions, concurrent operations (10 parallel)        |
+| `auth.test.js`                     | Token rotation, refresh reuse rejection, timing-safe comparison |
+| `groupsAndSettlements.test.js`     | Membership checks, settlement validation, optimistic locking    |
+| `emailVerification.test.js`        | Token verify, single-use rejection, expiry, anti-enumeration    |
+| `memberRemoval.test.js`            | Safe removal (0 balance required), authorization                |
+| `ttl.test.js`                      | Demo expiry, real users never get `expiresAt`                   |
+| `PaymentQRModal.test.jsx`          | Integer formatting, VPA validation, INR-only QR                 |
+| `Footer.test.jsx`                  | Copyright, external links, accessibility                        |
+| `ServerWakeIndicator.test.jsx`     | Wake states, progress timer, auto-dismiss                       |
+| `AuthContext.test.jsx`             | Direct demo login, health state, overlapping wake operations    |
+| `LoginPage.test.jsx`               | Credentials and one-click instant demo behavior                 |
+| `AmbientShaderBackground.test.jsx` | Test-mode CSS fallback without WebGL                            |
 
 ---
 
 ## Quick Start
 
 **Docker (full stack):**
+
 ```bash
 docker compose up --build
 # UI: localhost:8080  API: localhost:5001
 ```
 
 **Local development:**
+
 ```bash
 # Server
 cd server && cp .env.example .env  # Set MONGODB_URI + JWT secrets
@@ -312,6 +299,7 @@ cd client && npm install && npm run dev
 ```
 
 **Run tests:**
+
 ```bash
 cd server && npm test                    # 180 tests
 cd server && npm run test:coverage       # 91.15% statements
@@ -325,13 +313,13 @@ gitleaks detect --source . --verbose     # 0 leaks
 
 The instant demo seeds realistic data for exploration:
 
-| Category | Count | Details |
-|:---------|:------|:--------|
-| **Personal Expenses** | 25 | 3 months, 7 categories, 5 payment modes |
-| **Groups** | 10 | 2-6 members each, NPR/INR/USD currencies |
-| **Group Expenses** | 25+ | EQUAL, EXACT, PERCENT splits |
-| **Settlements** | 1 | Partial payment example |
-| **Teammates** | 9 | For group variety |
+| Category              | Count | Details                                  |
+| :-------------------- | :---- | :--------------------------------------- |
+| **Personal Expenses** | 25    | 3 months, 7 categories, 5 payment modes  |
+| **Groups**            | 10    | 2-6 members each, NPR/INR/USD currencies |
+| **Group Expenses**    | 25+   | EQUAL, EXACT, PERCENT splits             |
+| **Settlements**       | 1     | Partial payment example                  |
+| **Teammates**         | 9     | For group variety                        |
 
 Groups include: Pokhara Trip, Flatmates, Office Lunch Club, Remote Team Offsite (USD), Wedding Gift (INR), Hiking Club, Book Club, Birthday Party, Gaming Setup, and an empty planning group.
 
@@ -339,21 +327,21 @@ Groups include: Pokhara Trip, Flatmates, Office Lunch Club, Remote Team Offsite 
 
 ## Limitations & Future Work
 
-| Current Limitation | Rationale | Future Path |
-|:-------------------|:----------|:------------|
-| One session per user | O(1) revocation with single hashed token | Multi-device cap (5) + Redis |
-| Balances computed on read | No drift; correct for <1000 expenses/group | Materialized snapshots |
-| In-memory rate limiting | Works for single instance | Redis-backed for horizontal scale |
-| Free-tier cold starts | 30-50s Render wake | Same Docker → always-on host |
+| Current Limitation        | Rationale                                  | Future Path                       |
+| :------------------------ | :----------------------------------------- | :-------------------------------- |
+| One session per user      | O(1) revocation with single hashed token   | Multi-device cap (5) + Redis      |
+| Balances computed on read | No drift; correct for <1000 expenses/group | Materialized snapshots            |
+| In-memory rate limiting   | Works for single instance                  | Redis-backed for horizontal scale |
+| Free-tier cold starts     | 30-50s Render wake                         | Same Docker → always-on host      |
 
 ---
 
 ## Project Evolution
 
-| Version | Focus | Stack |
-|:--------|:------|:------|
-| **v1** | CI/CD pipeline | React + Supabase → Jenkins → AWS S3/CloudFront |
-| **v2** | Full-stack app + atmospheric fintech UI | React + Express + MongoDB + Docker + GitHub Actions |
+| Version | Focus                                   | Stack                                               |
+| :------ | :-------------------------------------- | :-------------------------------------------------- |
+| **v1**  | CI/CD pipeline                          | React + Supabase → Jenkins → AWS S3/CloudFront      |
+| **v2**  | Full-stack app + atmospheric fintech UI | React + Express + MongoDB + Docker + GitHub Actions |
 
 The [`v1` branch](https://github.com/Nittaany/CashDash/tree/v1) preserves the original Jenkins/AWS pipeline. v2 is a ground-up rebuild addressing security and reliability gaps.
 
