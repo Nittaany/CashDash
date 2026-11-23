@@ -41,103 +41,85 @@
 
 ## System Architecture
 
+```mermaid
+flowchart TB
+  subgraph BROWSER["🌐 BROWSER · React 19 SPA (Vite + Tailwind)"]
+    AC["AuthContext<br/>JWT kept in memory only"]
+    PG["Pages<br/>Dashboard · Expenses · Groups"]
+    CM["Components<br/>Navbar · Forms · Modals"]
+    AP["API client<br/>auto-retry on 401<br/>silent token refresh"]
+    PG --> AP
+    AC --> AP
+  end
+
+  subgraph VERCEL["▲ VERCEL EDGE · vercel.json rewrites"]
+    RW1["/api/* → proxy to Render<br/>same-origin, so cookies work"]
+    RW2["/* → /index.html<br/>SPA fallback for client routing"]
+  end
+
+  subgraph RENDER["🐳 RENDER · Docker container · Express 5 on Node 22"]
+    subgraph PIPE["REQUEST PIPELINE"]
+      direction LR
+      H["Helmet<br/>security headers"] --> C["CORS<br/>allowlist"] --> RL["Rate limit<br/>per route"] --> J["JSON parse<br/>10 kB cap"] --> CK["Cookie<br/>parse"] --> AV["authenticate JWT<br/>+ Zod validate"]
+    end
+
+    subgraph ROUTES["ROUTES"]
+      direction LR
+      R1["/api/auth<br/>register · login · refresh<br/>logout · demo<br/>verify-email · reset-password"]
+      R2["/api/wallet<br/>GET balance<br/>POST topup"]
+      R3["/api/expenses<br/>GET list · POST create<br/>DELETE with atomic refund"]
+      R4["/api/groups<br/>groups and members<br/>EQUAL / EXACT / PERCENT expenses<br/>settlements · paginated summary<br/>CSV export"]
+    end
+
+    subgraph SERVICES["SERVICES · business logic, no DB imports"]
+      direction LR
+      S1["splitCalculator<br/>integer math only<br/>₹100.00 = 10000 paise<br/>÷ 3 → 3334 · 3333 · 3333"]
+      S2["debtSimplifier<br/>net balance per user<br/>greedy matching<br/>fewest transfers"]
+      S3["mailer<br/>Resend API<br/>or mock transport<br/>in dev and test"]
+    end
+
+    ODM["Mongoose ODM<br/>session.withTransaction()"]
+  end
+
+  subgraph ATLAS["🍃 MONGODB ATLAS · replica set (enables multi-document ACID transactions)"]
+    direction LR
+    U["users<br/>email unique<br/>passwordHash<br/>refreshTokenHash<br/>expiresAt TTL"]
+    PE["personalexpenses<br/>userId indexed<br/>category<br/>amountMinor<br/>date indexed<br/>expiresAt TTL"]
+    G["groups<br/>members[]<br/>currency<br/>settlementVersion<br/>expiresAt TTL"]
+    GE["groupexpenses<br/>groupId indexed<br/>splits[]<br/>splitType"]
+    ST["settlements<br/>groupId indexed<br/>fromUser / toUser<br/>amountMinor"]
+  end
+
+  RESEND["Resend API<br/>transactional email"]
+
+  BROWSER -->|"HTTPS · same-origin requests"| VERCEL
+  VERCEL -->|"proxied request"| PIPE
+  PIPE --> ROUTES
+  ROUTES -->|"calls"| SERVICES
+  ROUTES --> ODM
+  ODM -->|"Mongoose"| ATLAS
+  S3 -.-> RESEND
+
+  classDef client fill:#1d4ed8,stroke:#93c5fd,color:#ffffff
+  classDef vercel fill:#334155,stroke:#cbd5e1,color:#ffffff
+  classDef api fill:#047857,stroke:#6ee7b7,color:#ffffff
+  classDef svc fill:#b45309,stroke:#fcd34d,color:#ffffff
+  classDef db fill:#6d28d9,stroke:#c4b5fd,color:#ffffff
+  classDef ext fill:#475569,stroke:#cbd5e1,color:#ffffff,stroke-dasharray:4 3
+  class AC,PG,CM,AP client
+  class RW1,RW2 vercel
+  class H,C,RL,J,CK,AV,R1,R2,R3,R4,ODM api
+  class S1,S2,S3 svc
+  class U,PE,G,GE,ST db
+  class RESEND ext
 ```
-┌────────────────────────────────────────────────────────────────────────────────────┐
-│                                   BROWSER                                          │
-│  ┌──────────────────────────────────────────────────────────────────────────────┐  │
-│  │  React 19 SPA (Vite + Tailwind)                                              │  │
-│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────────────────┐ │  │
-│  │  │ AuthContext │ │   Pages     │ │ Components  │ │ API Client              │ │  │
-│  │  │ (JWT in    │ │ • Dashboard │ │ • Navbar    │ │ • Auto-retry on 401     │ │  │
-│  │  │  memory)   │ │ • Expenses  │ │ • Forms     │ │ • Silent token refresh  │ │  │
-│  │  │             │ │ • Groups    │ │ • Modals    │ │                         │ │  │
-│  │  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────────────────┘ │  │
-│  └──────────────────────────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────────────────────────┘
-                                        │
-                                        │ HTTPS (same-origin)
-                                        ▼
-┌────────────────────────────────────────────────────────────────────────────────────┐
-│                              VERCEL EDGE                                           │
-│  ┌──────────────────────────────────────────────────────────────────────────────┐  │
-│  │  vercel.json rewrites:                                                       │  │
-│  │  • /api/*  →  proxy to Render API (same-origin cookies work!)                │  │
-│  │  • /*      →  /index.html (SPA fallback for client-side routing)             │  │
-│  └──────────────────────────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────────────────────────┘
-                                        │
-                                        │ Proxied request
-                                        ▼
-┌────────────────────────────────────────────────────────────────────────────────────┐
-│                         RENDER (Docker Container)                                  │
-│  ┌──────────────────────────────────────────────────────────────────────────────┐  │
-│  │  Express 5 API (Node 22)                                                     │  │
-│  │                                                                              │  │
-│  │  REQUEST PIPELINE:                                                           │  │
-│  │  ┌─────────┐ ┌──────┐ ┌───────────┐ ┌──────┐ ┌──────┐ ┌─────────┐           │  │
-│  │  │ Helmet  │→│ CORS │→│Rate Limit │→│ JSON │→│Cookie│→│ Routes  │           │  │
-│  │  │(security)│ │check │ │(per-route)│ │parse │ │parse │ │         │           │  │
-│  │  └─────────┘ └──────┘ └───────────┘ └──────┘ └──────┘ └─────────┘           │  │
-│  │                                                              │               │  │
-│  │  ┌───────────────────────────────────────────────────────────┘               │  │
-│  │  ▼                                                                           │  │
-│  │  ROUTES:                                                                     │  │
-│  │  ┌─────────────────┐ ┌─────────────────┐ ┌─────────────────┐                │  │
-│  │  │ /api/auth       │ │ /api/wallet     │ │ /api/expenses   │                │  │
-│  │  │ • register      │ │ • GET balance   │ │ • GET list      │                │  │
-│  │  │ • login         │ │ • POST topup    │ │ • POST create   │                │  │
-│  │  │ • refresh       │ │                 │ │ • DELETE        │                │  │
-│  │  │ • logout        │ │                 │ │   (atomic       │                │  │
-│  │  │ • demo          │ │                 │ │    refund)      │                │  │
-│  │  │ • verify-email  │ └─────────────────┘ └─────────────────┘                │  │
-│  │  │ • reset-password│                                                        │  │
-│  │  └─────────────────┘ ┌─────────────────────────────────────┐                │  │
-│  │                      │ /api/groups                         │                │  │
-│  │                      │ • CRUD groups & members             │                │  │
-│  │                      │ • expenses (EQUAL/EXACT/PERCENT)    │                │  │
-│  │                      │ • settlements                       │                │  │
-│  │                      │ • summary (paginated)               │                │  │
-│  │                      │ • CSV export                        │                │  │
-│  │                      └─────────────────────────────────────┘                │  │
-│  │                                                                              │  │
-│  │  SERVICES (Business Logic - No DB imports):                                  │  │
-│  │  ┌───────────────────┐ ┌───────────────────┐ ┌───────────────────┐          │  │
-│  │  │ splitCalculator   │ │ debtSimplifier    │ │ mailer            │          │  │
-│  │  │ ─────────────────│ │ ────────────────── │ │ ───────────────── │          │  │
-│  │  │ Integer math only │ │ Net balance/user  │ │ Resend API or     │          │  │
-│  │  │ ₹100÷3 =          │ │ Greedy matching   │ │ mock transport    │          │  │
-│  │  │ [3334,3333,3333]  │ │ Min # of transfers│ │ (dev/test)        │          │  │
-│  │  └───────────────────┘ └───────────────────┘ └───────────────────┘          │  │
-│  │                                                                              │  │
-│  └──────────────────────────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────────────────────────┘
-                                        │
-                                        │ Mongoose ODM
-                                        ▼
-┌────────────────────────────────────────────────────────────────────────────────────┐
-│                        MONGODB ATLAS (Replica Set)                                 │
-│  ┌──────────────────────────────────────────────────────────────────────────────┐  │
-│  │  WHY REPLICA SET? → Enables multi-document ACID transactions                 │  │
-│  │                                                                              │  │
-│  │  COLLECTIONS:                                                                │  │
-│  │  ┌────────────────┐ ┌────────────────┐ ┌────────────────┐                   │  │
-│  │  │ users          │ │ personalexp... │ │ groups         │                   │  │
-│  │  │ • email (uniq) │ │ • userId (idx) │ │ • members[]    │                   │  │
-│  │  │ • passwordHash │ │ • category     │ │ • currency     │                   │  │
-│  │  │ • refreshToken │ │ • amountMinor  │ │ • settlement   │                   │  │
-│  │  │   Hash         │ │ • date (idx)   │ │   Version      │                   │  │
-│  │  │ • expiresAt    │ │ • expiresAt    │ │ • expiresAt    │                   │  │
-│  │  │   (TTL index)  │ │   (TTL index)  │ │   (TTL index)  │                   │  │
-│  │  └────────────────┘ └────────────────┘ └────────────────┘                   │  │
-│  │  ┌────────────────┐ ┌────────────────┐                                      │  │
-│  │  │ groupexpenses  │ │ settlements    │  TTL indexes auto-delete             │  │
-│  │  │ • groupId (idx)│ │ • groupId (idx)│  demo data after 2 hours             │  │
-│  │  │ • splits[]     │ │ • from/toUser  │                                      │  │
-│  │  │ • splitType    │ │ • amountMinor  │                                      │  │
-│  │  └────────────────┘ └────────────────┘                                      │  │
-│  └──────────────────────────────────────────────────────────────────────────────┘  │
-└────────────────────────────────────────────────────────────────────────────────────┘
-```
+
+**How to read it**
+
+- **One origin for the browser.** The SPA only talks to Vercel. Vercel rewrites `/api/*` to Render, so the refresh-token cookie is first-party and survives Safari/Chrome third-party cookie blocking.
+- **Every request takes the same path.** Security headers, CORS allowlist, rate limit, body and cookie parsing, then JWT authentication and Zod validation, all before any route runs.
+- **Business logic is pure.** `splitCalculator` and `debtSimplifier` import nothing from the database layer, so they are unit-tested as plain functions.
+- **The replica set is deliberate.** MongoDB only supports multi-document transactions on a replica set, which is what keeps wallet debits and expense records consistent. TTL indexes delete demo data after 2 hours.
 
 ---
 
