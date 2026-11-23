@@ -57,7 +57,7 @@ export function RegisterPage() {
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center px-4 py-8">
-      <div className="w-full max-w-sm animate-slide-up">
+      <div className="w-full max-w-sm animate-slide-up relative before:pointer-events-none before:absolute before:inset-[-40px] before:-z-10 before:rounded-[32px] before:bg-[radial-gradient(circle_at_top,rgba(16,185,129,0.08),transparent_70%)]">
         {/* Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-emerald-500/10 mb-4">

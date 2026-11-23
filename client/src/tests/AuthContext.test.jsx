@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
 import { AuthProvider, useAuth } from "../context/AuthContext.jsx";
 
@@ -9,12 +9,13 @@ global.fetch = mockFetch;
 
 // Test component to access auth context
 function TestConsumer() {
-  const { user, loading, serverWaking } = useAuth();
+  const { user, loading, serverWaking, loginDemo } = useAuth();
   return (
     <div>
       <span data-testid="loading">{loading.toString()}</span>
       <span data-testid="serverWaking">{serverWaking.toString()}</span>
       <span data-testid="user">{user ? user.email : "null"}</span>
+      <button onClick={() => loginDemo().catch(() => {})}>Try demo</button>
     </div>
   );
 }
@@ -93,6 +94,37 @@ describe("AuthContext", () => {
     await waitFor(() => {
       expect(screen.getByTestId("loading").textContent).toBe("false");
       expect(screen.getByTestId("user").textContent).toBe("null");
+    });
+  });
+
+  it("keeps serverWaking true until overlapping health checks finish", async () => {
+    let resolveMountHealth;
+    let resolveDemoHealth;
+    mockFetch.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveMountHealth = resolve;
+    }));
+
+    renderWithAuth();
+    expect(screen.getByTestId("serverWaking").textContent).toBe("true");
+
+    mockFetch.mockImplementationOnce(() => new Promise((resolve) => {
+      resolveDemoHealth = resolve;
+    }));
+    fireEvent.click(screen.getByText("Try demo"));
+
+    await act(async () => {
+      resolveMountHealth({ ok: false });
+      await Promise.resolve();
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("serverWaking").textContent).toBe("true");
+    });
+
+    resolveDemoHealth({ ok: false });
+
+    await waitFor(() => {
+      expect(screen.getByTestId("serverWaking").textContent).toBe("false");
     });
   });
 });

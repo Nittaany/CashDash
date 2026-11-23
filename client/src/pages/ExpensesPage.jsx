@@ -271,7 +271,7 @@ export function ExpensesPage() {
                     </td>
                     <td className="py-3 text-slate-300 text-sm">{expense.description || "—"}</td>
                     <td className="py-3 text-slate-500 text-xs font-medium uppercase tracking-wide">{expense.paymentMode}</td>
-                    <td className="py-3 text-right font-semibold text-slate-100 tabular-nums">
+                    <td className="py-3 text-right font-semibold text-slate-100 tabular-nums currency">
                       {formatMoney(expense.amountMinor, user?.currency)}
                     </td>
                     <td className="py-3 text-right">

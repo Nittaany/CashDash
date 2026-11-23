@@ -372,7 +372,7 @@ export function GroupDetailPage() {
                     <span className="text-slate-300">{toMember?.name}</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <span className="font-medium text-slate-100">
+                    <span className="font-medium text-slate-100 currency tabular-nums">
                       {formatMoney(transfer.amountMinor, group?.currency)}
                     </span>
                     {isYou && toMember?.paymentHandle && (
@@ -475,7 +475,7 @@ export function GroupDetailPage() {
             {expenseForm.splitType === "EXACT" && (
               <div>
                 <label className="block text-sm font-medium text-slate-300 mb-2">
-                  Exact Shares (Total: {formatMoney(totalExact, group?.currency)} / {formatMoney(targetAmountMinor, group?.currency)})
+                  <span className="currency tabular-nums">Exact Shares (Total: {formatMoney(totalExact, group?.currency)} / {formatMoney(targetAmountMinor, group?.currency)})</span>
                 </label>
                 <div className="grid md:grid-cols-2 gap-2">
                   {expenseForm.participants.map((pid) => (
@@ -560,7 +560,7 @@ export function GroupDetailPage() {
                       <td className="py-3 text-slate-100">{expense.description}</td>
                       <td className="py-3 text-slate-300">{expense.payerId?.name}</td>
                       <td className="py-3 text-slate-400 text-sm">{expense.splitType}</td>
-                      <td className="py-3 text-right font-medium text-slate-100">
+                      <td className="py-3 text-right font-medium text-slate-100 currency tabular-nums">
                         {formatMoney(expense.amountMinor, group?.currency)}
                       </td>
                       <td className="py-3 text-right">

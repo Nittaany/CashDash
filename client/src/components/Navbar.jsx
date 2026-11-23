@@ -35,7 +35,7 @@ export function Navbar() {
   return (
     <nav className="sticky top-0 z-40">
       <div className="container mx-auto px-4 pt-3">
-        <div className="rounded-2xl border border-white/[0.08] bg-[#0c1017]/70 backdrop-blur-md px-4 shadow-lg shadow-black/20">
+        <div className="rounded-full border border-white/[0.10] bg-[#0c1017]/75 backdrop-blur-xl px-4 shadow-[0_12px_40px_rgba(0,0,0,0.28)]">
           <div className="flex items-center justify-between h-12">
             {/* Logo */}
             <Link to="/dashboard" className="flex items-center gap-2.5 group">
@@ -75,7 +75,10 @@ export function Navbar() {
             {/* Mobile Menu Button */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="md:hidden p-2 text-slate-400 hover:text-slate-100"
+              type="button"
+              aria-label={mobileMenuOpen ? "Close navigation menu" : "Open navigation menu"}
+              aria-expanded={mobileMenuOpen}
+              className="md:hidden p-2.5 text-slate-400 hover:text-slate-100"
             >
               {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
             </button>

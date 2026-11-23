@@ -58,7 +58,7 @@ export function ProfilePage() {
         </div>
       )}
 
-      <div className="card">
+      <div className="card border-white/[0.10]">
         <div className="flex items-center gap-4 mb-6">
           <div className="p-4 bg-white/[0.04] rounded-full border border-white/[0.06]">
             <User className="w-8 h-8 text-emerald-500" />

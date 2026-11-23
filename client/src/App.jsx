@@ -22,14 +22,6 @@ function AppRoutes() {
   const { user, loading, serverWaking, demoSessionEnded, clearDemoSessionEnded } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const [showWakeIndicator, setShowWakeIndicator] = useState(false);
-
-  // Show wake indicator when server is waking
-  useEffect(() => {
-    if (serverWaking) {
-      setShowWakeIndicator(true);
-    }
-  }, [serverWaking]);
 
   // Redirect to login with message when demo session ends
   useEffect(() => {
@@ -55,7 +47,6 @@ function AppRoutes() {
     <>
       <ServerWakeIndicator
         isWaking={serverWaking}
-        onDismiss={() => setShowWakeIndicator(false)}
       />
       <Routes>
         <Route path="/login" element={user ? <Navigate to="/dashboard" replace /> : <LoginPage />} />

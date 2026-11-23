@@ -18,9 +18,26 @@
 
 /* Base */
 body {
-  background-color: var(--color-canvas);
+  min-height: 100vh;
+  background:
+    radial-gradient(900px 420px at 82% -140px, rgba(20, 184, 166, 0.08), transparent 68%),
+    radial-gradient(700px 360px at 14% -100px, rgba(16, 185, 129, 0.055), transparent 70%),
+    linear-gradient(180deg, #090c11 0%, var(--color-canvas) 28%, #06080b 100%);
   @apply text-slate-50 antialiased;
+  font-family: "Instrument Sans", ui-sans-serif, system-ui, sans-serif;
   font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+.tabular-nums,
+.currency,
+time,
+code {
+  font-variant-numeric: tabular-nums;
+}
+
+.currency {
+  font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: -0.045em;
 }
 
 /* Atmospheric ambient glow — restrained top-edge emerald/teal */
@@ -91,7 +108,7 @@ button {
 
 /* Cards — subtle elevation on obsidian */
 .card {
-  @apply bg-[#0c1017]/80 border border-white/[0.06] rounded-xl p-6;
+  @apply relative bg-[#0c1017]/85 border border-white/[0.08] rounded-xl p-6;
 }
 
 .card-interactive {
@@ -182,6 +199,11 @@ button {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes barFill {
+  from { transform: scaleX(0); transform-origin: left; }
+  to { transform: scaleX(1); transform-origin: left; }
+}
+
 .animate-in {
   animation: fadeIn 0.25s ease-out both;
 }
@@ -198,6 +220,10 @@ button {
   animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
+.category-bar-fill {
+  animation: barFill 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
 /* Stagger utility — nth-child delay */
 .stagger-children > :nth-child(1) { animation-delay: 0ms; }
 .stagger-children > :nth-child(2) { animation-delay: 60ms; }
@@ -212,6 +238,7 @@ button {
   .animate-slide-up,
   .animate-slide-down,
   .animate-fade-up,
+  .category-bar-fill,
   .stagger-children > * {
     animation: none !important;
   }

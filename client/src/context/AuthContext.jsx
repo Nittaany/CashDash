@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from "react";
+import { createContext, useContext, useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { api, setAccessToken, clearAccessToken, checkApiHealth, setDemoSessionEndCallback } from "../api/client.js";
 
@@ -9,6 +9,19 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true);
   const [serverWaking, setServerWaking] = useState(false);
   const [demoSessionEnded, setDemoSessionEnded] = useState(false);
+  const wakingOperationsRef = useRef(0);
+
+  const beginServerWake = useCallback(() => {
+    wakingOperationsRef.current += 1;
+    setServerWaking(true);
+  }, []);
+
+  const finishServerWake = useCallback(() => {
+    wakingOperationsRef.current = Math.max(0, wakingOperationsRef.current - 1);
+    if (wakingOperationsRef.current === 0) {
+      setServerWaking(false);
+    }
+  }, []);
 
   // Set up demo session end callback
   useEffect(() => {
@@ -26,10 +39,14 @@ export function AuthProvider({ children }) {
     async function restoreSession() {
       try {
         // Check if API is healthy first (handles cold starts)
-        setServerWaking(true);
-        const isHealthy = await checkApiHealth();
-        if (!cancelled) {
-          setServerWaking(false);
+        beginServerWake();
+        let isHealthy = false;
+        try {
+          isHealthy = await checkApiHealth();
+        } finally {
+          if (!cancelled) {
+            finishServerWake();
+          }
         }
 
         if (!isHealthy) {
@@ -61,7 +78,6 @@ export function AuthProvider({ children }) {
       } finally {
         if (!cancelled) {
           setLoading(false);
-          setServerWaking(false);
         }
       }
     }
@@ -88,20 +104,22 @@ export function AuthProvider({ children }) {
 
   const loginDemo = useCallback(async () => {
     // Check if API is awake first
-    setServerWaking(true);
-    const isHealthy = await checkApiHealth();
-    setServerWaking(false);
+    beginServerWake();
+    try {
+      const isHealthy = await checkApiHealth();
+      if (!isHealthy) {
+        throw new Error("Backend server is waking up. Please try again in a few seconds.");
+      }
 
-    if (!isHealthy) {
-      throw new Error("Backend server is waking up. Please try again in a few seconds.");
+      const { accessToken, user: userData } = await api.post("/api/auth/demo", {});
+      setAccessToken(accessToken, true);
+      setUser(userData);
+      setDemoSessionEnded(false);
+      return userData;
+    } finally {
+      finishServerWake();
     }
-
-    const { accessToken, user: userData } = await api.post("/api/auth/demo", {});
-    setAccessToken(accessToken, true);
-    setUser(userData);
-    setDemoSessionEnded(false);
-    return userData;
-  }, []);
+  }, [beginServerWake, finishServerWake]);
 
   const logout = useCallback(async () => {
     try {

@@ -168,9 +168,14 @@ export function GroupsPage() {
                   {group.description && (
                     <p className="text-slate-400 text-sm mt-1">{group.description}</p>
                   )}
-                  <p className="text-slate-500 text-sm mt-2">
-                    {group.members?.length || 0} members · {group.currency}
-                  </p>
+                  <div className="flex items-center gap-2 mt-3">
+                    <span className="badge border border-white/[0.08] bg-white/[0.03] text-slate-400">
+                      {group.members?.length || 0} members
+                    </span>
+                    <span className="badge border border-emerald-500/20 bg-emerald-500/10 text-emerald-300 currency tabular-nums">
+                      {group.currency}
+                    </span>
+                  </div>
                 </div>
                 <ArrowRight className="w-5 h-5 text-slate-500" />
               </div>

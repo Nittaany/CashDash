@@ -23,14 +23,14 @@ export function ConfirmModal({ isOpen, title, message, onConfirm, onCancel, conf
 
   return (
     <div 
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 animate-in"
       onClick={onCancel}
       role="dialog"
       aria-modal="true"
       aria-labelledby="confirm-modal-title"
     >
       <div 
-        className="bg-slate-800 rounded-lg p-6 max-w-md mx-4 shadow-xl"
+        className="animate-fade-up bg-[#10151f] border border-white/[0.10] rounded-xl p-6 max-w-md mx-4 shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="confirm-modal-title" className="text-lg font-semibold text-white mb-2">

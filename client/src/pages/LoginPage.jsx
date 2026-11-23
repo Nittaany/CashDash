@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
-import { api } from "../api/client.js";
 import { Wallet, Loader2, Zap, ArrowRight } from "lucide-react";
 
 export function LoginPage() {
@@ -14,13 +13,6 @@ export function LoginPage() {
   const [info, setInfo] = useState("");
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
-  const [mailConfigured, setMailConfigured] = useState(false);
-
-  useEffect(() => {
-    api.get("/api/health")
-      .then((data) => setMailConfigured(data.mailConfigured === true))
-      .catch(() => setMailConfigured(false));
-  }, []);
 
   useEffect(() => {
     if (location.state?.message) {
@@ -62,7 +54,7 @@ export function LoginPage() {
     <div className="min-h-[85vh] flex items-center justify-center px-4 relative">
       {/* Atmospheric radial glow behind auth card */}
       <div
-        className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[500px] h-[500px]"
+        className="pointer-events-none absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-[500px] aspect-square"
         style={{
           background: "radial-gradient(ellipse at center, rgba(16,185,129,0.07) 0%, rgba(20,184,166,0.03) 40%, transparent 70%)",
           filter: "blur(60px)"
@@ -93,12 +85,13 @@ export function LoginPage() {
         )}
 
         {/* Auth Card */}
-        <div className="rounded-xl border border-white/[0.08] bg-[#0c1017]/60 backdrop-blur-sm p-6 mb-6">
+        <div className="relative rounded-xl border border-white/[0.10] bg-[#0c1017]/75 backdrop-blur-md p-6 mb-6 shadow-[0_24px_80px_rgba(0,0,0,0.28)] before:absolute before:inset-x-8 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-300/30 before:to-transparent">
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4 mb-6">
             <div>
-              <label className="block text-sm text-slate-400 mb-1.5">Email</label>
+              <label htmlFor="login-email" className="block text-sm text-slate-400 mb-1.5">Email</label>
               <input
+                id="login-email"
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
@@ -109,8 +102,9 @@ export function LoginPage() {
             </div>
 
             <div>
-              <label className="block text-sm text-slate-400 mb-1.5">Password</label>
+              <label htmlFor="login-password" className="block text-sm text-slate-400 mb-1.5">Password</label>
               <input
+                id="login-password"
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -118,13 +112,11 @@ export function LoginPage() {
                 required
                 className="w-full"
               />
-              {mailConfigured && (
-                <div className="mt-1.5 text-right">
-                  <Link to="/forgot-password" className="text-xs text-slate-500 hover:text-emerald-400">
-                    Forgot password?
-                  </Link>
-                </div>
-              )}
+              <div className="mt-1.5 text-right">
+                <Link to="/forgot-password" className="text-xs text-slate-500 hover:text-emerald-400">
+                  Forgot password?
+                </Link>
+              </div>
             </div>
 
             <button
@@ -151,19 +143,19 @@ export function LoginPage() {
           <button
             onClick={handleDemo}
             disabled={demoLoading}
-            className="w-full flex items-center justify-center gap-2.5 px-5 py-3 rounded-lg
-                       bg-amber-500/10 border border-amber-500/20 text-amber-200 font-medium
-                       hover:bg-amber-500/15 hover:border-amber-500/30
-                       active:bg-amber-500/20
+            className="w-full flex items-center justify-center gap-2.5 px-5 py-3.5 rounded-lg
+                       bg-emerald-500 text-[#06110d] border border-emerald-300/40 font-semibold shadow-[0_12px_32px_rgba(16,185,129,0.16)]
+                       hover:bg-emerald-400 hover:-translate-y-0.5
+                       active:bg-emerald-600 active:translate-y-0
                        transition-all duration-150"
           >
             {demoLoading ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
-              <Zap className="w-4 h-4 text-amber-400" />
+              <Zap className="w-4 h-4" />
             )}
-            <span>Try instant demo</span>
-            <ArrowRight className="w-3.5 h-3.5 text-amber-400/60" />
+            <span>Try Instant Demo (No Signup)</span>
+            <ArrowRight className="w-3.5 h-3.5" />
           </button>
           <p className="text-center text-xs text-slate-500 mt-2.5">
             No signup required · 2 hour session

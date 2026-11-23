@@ -101,7 +101,7 @@ export function DashboardPage() {
         <div className="flex items-start justify-between mb-6">
           <div>
             <p className="text-slate-500 text-sm mb-1">Wallet Balance</p>
-            <p className="text-3xl font-semibold text-slate-50 tabular-nums tracking-tight">
+            <p className="currency text-3xl font-semibold text-slate-50 tabular-nums tracking-tight">
               {formatMoney(walletData?.walletBalanceMinor || 0, user?.currency)}
             </p>
           </div>
@@ -137,7 +137,7 @@ export function DashboardPage() {
             <TrendingUp className="w-4 h-4 text-emerald-500" />
             <h2 className="text-base">This Month</h2>
           </div>
-          <p className="text-2xl font-semibold text-slate-50 mb-4 tabular-nums tracking-tight">
+          <p className="currency text-2xl font-semibold text-slate-50 mb-4 tracking-tight">
             {formatMoney(walletData?.monthlySummary?.totalSpentMinor || 0, user?.currency)}
           </p>
 
@@ -154,7 +154,7 @@ export function DashboardPage() {
                     </div>
                     <div className="h-1 bg-white/[0.06] rounded-full overflow-hidden">
                       <div
-                        className={`h-full rounded-full ${categoryColors[category] || categoryColors.Other}`}
+                        className={`category-bar-fill h-full rounded-full ${categoryColors[category] || categoryColors.Other}`}
                         style={{ width: `${percent}%` }}
                       />
                     </div>

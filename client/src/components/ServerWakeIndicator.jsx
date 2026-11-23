@@ -62,7 +62,12 @@ export function ServerWakeIndicator({ isWaking, onDismiss }) {
   const progress = Math.min((elapsed / ESTIMATED_WAKE_TIME) * 100, 95);
 
   return (
-    <div className="fixed top-0 left-0 right-0 z-50 animate-slide-down">
+    <div
+      className="fixed top-0 left-0 right-0 z-50 animate-slide-down"
+      role="status"
+      aria-live="polite"
+      aria-atomic="true"
+    >
       <div className="mx-auto max-w-2xl px-4 pt-3 pb-3">
         <div className="rounded-xl border border-white/[0.06] bg-[#0c1017]/90 backdrop-blur-lg px-5 py-3.5 shadow-lg shadow-black/30">
           {status === "ready" ? (

@@ -4,15 +4,24 @@ import { BrowserRouter } from "react-router-dom";
 import { LoginPage } from "../pages/LoginPage.jsx";
 
 // Mock useAuth
-const mockLogin = vi.fn();
-const mockLoginDemo = vi.fn();
-const mockNavigate = vi.fn();
+const { mockLogin, mockLoginDemo, mockNavigate, mockApiGet } = vi.hoisted(() => ({
+  mockLogin: vi.fn(),
+  mockLoginDemo: vi.fn(),
+  mockNavigate: vi.fn(),
+  mockApiGet: vi.fn()
+}));
 
 vi.mock("../context/AuthContext.jsx", () => ({
   useAuth: () => ({
     login: mockLogin,
     loginDemo: mockLoginDemo
   })
+}));
+
+vi.mock("../api/client.js", () => ({
+  api: {
+    get: mockApiGet
+  }
 }));
 
 vi.mock("react-router-dom", async () => {
@@ -34,6 +43,12 @@ function renderLoginPage() {
 describe("LoginPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("does not run an independent health check", () => {
+    renderLoginPage();
+
+    expect(mockApiGet).not.toHaveBeenCalledWith("/api/health");
   });
 
   it("renders email and password inputs", () => {
