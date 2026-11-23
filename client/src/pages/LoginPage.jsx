@@ -64,10 +64,15 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center">
-      <div className="card w-full max-w-md">
-        <div className="text-center mb-8">
-          <Wallet className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
+    <div className="min-h-[80vh] flex items-center justify-center auth-gradient">
+      <div className="card w-full max-w-md animate-scaleIn relative overflow-hidden">
+        {/* Subtle glow effect */}
+        <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
+        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl" />
+        <div className="text-center mb-8 relative">
+          <div className="inline-flex p-3 bg-emerald-500/10 rounded-2xl mb-4">
+            <Wallet className="w-10 h-10 text-emerald-500" />
+          </div>
           <h1 className="text-2xl font-bold text-slate-100">Welcome to CashDash</h1>
           <p className="text-slate-400 mt-2">Track expenses, split bills, settle debts</p>
         </div>
@@ -138,14 +143,20 @@ export function LoginPage() {
         <button
           onClick={handleDemo}
           disabled={demoLoading}
-          className="btn-secondary w-full flex items-center justify-center gap-2 border border-emerald-600 hover:border-emerald-500"
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium
+                     bg-gradient-to-r from-emerald-600/20 to-emerald-500/10 
+                     border border-emerald-500/50 text-emerald-300
+                     hover:from-emerald-600/30 hover:to-emerald-500/20 hover:border-emerald-400/60
+                     hover:shadow-lg hover:shadow-emerald-500/10
+                     transition-all duration-300"
         >
           {demoLoading ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
-            <Zap className="w-4 h-4 text-emerald-500" />
+            <Zap className="w-4 h-4" />
           )}
-          Try Instant Demo (No Signup)
+          Try Instant Demo
+          <span className="text-emerald-400/70 text-sm">(No Signup)</span>
         </button>
 
         <p className="text-center text-slate-400 text-sm mt-6">

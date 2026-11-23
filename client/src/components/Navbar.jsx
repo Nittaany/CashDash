@@ -33,15 +33,17 @@ export function Navbar() {
   if (!user) return null;
 
   return (
-    <nav className="bg-slate-900 border-b border-slate-800 sticky top-0 z-40">
+    <nav className="bg-slate-900/80 backdrop-blur-md border-b border-slate-800/50 sticky top-0 z-40">
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link to="/dashboard" className="flex items-center gap-2">
-            <Wallet className="w-8 h-8 text-emerald-500" />
+          <Link to="/dashboard" className="flex items-center gap-2 group">
+            <div className="p-1.5 rounded-lg bg-emerald-500/10 group-hover:bg-emerald-500/20 transition-colors">
+              <Wallet className="w-6 h-6 text-emerald-500" />
+            </div>
             <span className="font-bold text-xl text-slate-100">CashDash</span>
             {user.isDemo && (
-              <span className="px-2 py-0.5 text-xs bg-amber-600 text-white rounded-full">
+              <span className="px-2 py-0.5 text-xs bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-full font-medium">
                 Demo
               </span>
             )}

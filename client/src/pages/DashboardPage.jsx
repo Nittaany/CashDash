@@ -78,13 +78,16 @@ export function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
         <h1 className="text-2xl font-bold text-slate-100">Dashboard</h1>
-        <span className="text-slate-400">Welcome, {user?.name}</span>
+        <span className="text-slate-400 text-sm">Welcome back, {user?.name}</span>
       </div>
 
       {error && (
-        <div className="p-3 bg-rose-900/50 border border-rose-700 rounded-lg text-rose-200">
+        <div className="p-3 bg-rose-900/50 border border-rose-700 rounded-lg text-rose-200 flex items-center gap-2">
+          <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+          </svg>
           {error}
         </div>
       )}
@@ -165,23 +168,29 @@ export function DashboardPage() {
           <div className="space-y-3">
             <Link
               to="/expenses"
-              className="flex items-center justify-between p-4 bg-slate-800 rounded-lg hover:bg-slate-700 transition-colors"
+              className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 
+                         hover:translate-x-1 transition-all duration-200 group"
             >
               <div className="flex items-center gap-3">
-                <Receipt className="w-5 h-5 text-emerald-500" />
+                <div className="p-2 bg-emerald-500/10 rounded-lg group-hover:bg-emerald-500/20 transition-colors">
+                  <Receipt className="w-5 h-5 text-emerald-500" />
+                </div>
                 <span className="text-slate-100">Add Expense</span>
               </div>
-              <ArrowRight className="w-4 h-4 text-slate-400" />
+              <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 transition-colors" />
             </Link>
             <Link
               to="/groups"
-              className="flex items-center justify-between p-4 bg-slate-800 rounded-lg hover:bg-slate-700 transition-colors"
+              className="flex items-center justify-between p-4 bg-slate-800/50 rounded-lg hover:bg-slate-800 
+                         hover:translate-x-1 transition-all duration-200 group"
             >
               <div className="flex items-center gap-3">
-                <Users className="w-5 h-5 text-emerald-500" />
+                <div className="p-2 bg-emerald-500/10 rounded-lg group-hover:bg-emerald-500/20 transition-colors">
+                  <Users className="w-5 h-5 text-emerald-500" />
+                </div>
                 <span className="text-slate-100">Manage Groups</span>
               </div>
-              <ArrowRight className="w-4 h-4 text-slate-400" />
+              <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-emerald-400 transition-colors" />
             </Link>
           </div>
         </div>
