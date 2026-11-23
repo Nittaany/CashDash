@@ -18,7 +18,7 @@ describe("ServerWakeIndicator", () => {
 
   it("renders when server is waking", () => {
     render(<ServerWakeIndicator isWaking={true} />);
-    expect(screen.getByText("Waking server...")).toBeInTheDocument();
+    expect(screen.getByText(/connecting/i)).toBeInTheDocument();
   });
 
   it("shows elapsed time counter", () => {
@@ -34,21 +34,19 @@ describe("ServerWakeIndicator", () => {
 
   it("displays explanation text", () => {
     render(<ServerWakeIndicator isWaking={true} />);
-    expect(screen.getByText(/Free-tier servers sleep/)).toBeInTheDocument();
+    expect(screen.getByText(/Free-tier servers sleep/i)).toBeInTheDocument();
   });
 
   it("shows ready state when wake completes", () => {
     const { rerender } = render(<ServerWakeIndicator isWaking={true} />);
     
-    // Advance time while waking
     act(() => {
       vi.advanceTimersByTime(5000);
     });
     
-    // Server finishes waking
     rerender(<ServerWakeIndicator isWaking={false} />);
     
-    expect(screen.getByText("Server ready!")).toBeInTheDocument();
+    expect(screen.getByText(/connected/i)).toBeInTheDocument();
   });
 
   it("calls onDismiss after ready state", () => {
@@ -59,14 +57,11 @@ describe("ServerWakeIndicator", () => {
       vi.advanceTimersByTime(1000);
     });
     
-    // Transition to not waking
     rerender(<ServerWakeIndicator isWaking={false} onDismiss={onDismiss} />);
     
-    // Should show ready, not yet dismissed
-    expect(screen.getByText("Server ready!")).toBeInTheDocument();
+    expect(screen.getByText(/connected/i)).toBeInTheDocument();
     expect(onDismiss).not.toHaveBeenCalled();
     
-    // After 2 second delay, should dismiss
     act(() => {
       vi.advanceTimersByTime(2500);
     });
@@ -77,12 +72,10 @@ describe("ServerWakeIndicator", () => {
   it("caps progress at 95%", () => {
     render(<ServerWakeIndicator isWaking={true} />);
     
-    // Advance past estimated time
     act(() => {
       vi.advanceTimersByTime(60000);
     });
     
-    // Should show 60s elapsed but progress capped
     expect(screen.getByText(/60s \/ ~45s/)).toBeInTheDocument();
   });
 });

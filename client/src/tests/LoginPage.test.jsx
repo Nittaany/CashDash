@@ -46,14 +46,14 @@ describe("LoginPage", () => {
   it("renders Instant Demo button", () => {
     renderLoginPage();
 
-    expect(screen.getByText(/Try Instant Demo/)).toBeInTheDocument();
+    expect(screen.getByText(/instant demo/i)).toBeInTheDocument();
   });
 
   it("calls loginDemo when demo button is clicked", async () => {
     mockLoginDemo.mockResolvedValue({ name: "Demo User" });
     renderLoginPage();
 
-    fireEvent.click(screen.getByText(/Try Instant Demo/));
+    fireEvent.click(screen.getByText(/instant demo/i));
 
     await waitFor(() => {
       expect(mockLoginDemo).toHaveBeenCalled();
@@ -70,7 +70,7 @@ describe("LoginPage", () => {
     fireEvent.change(screen.getByPlaceholderText("••••••••"), {
       target: { value: "wrongpassword" }
     });
-    fireEvent.click(screen.getByText("Sign In"));
+    fireEvent.click(screen.getByText(/sign in/i));
 
     await waitFor(() => {
       expect(screen.getByText("Invalid credentials")).toBeInTheDocument();
@@ -87,7 +87,7 @@ describe("LoginPage", () => {
     fireEvent.change(screen.getByPlaceholderText("••••••••"), {
       target: { value: "password123" }
     });
-    fireEvent.click(screen.getByText("Sign In"));
+    fireEvent.click(screen.getByText(/sign in/i));
 
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith("/dashboard");

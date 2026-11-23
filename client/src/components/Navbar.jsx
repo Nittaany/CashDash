@@ -33,19 +33,15 @@ export function Navbar() {
   if (!user) return null;
 
   return (
-    <nav className="bg-slate-900/80 backdrop-blur-md border-b border-slate-800/50 sticky top-0 z-40">
+    <nav className="border-b border-slate-800/50 bg-slate-950/90 backdrop-blur-sm sticky top-0 z-40">
       <div className="container mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
+        <div className="flex items-center justify-between h-14">
           {/* Logo */}
-          <Link to="/dashboard" className="flex items-center gap-2 group">
-            <div className="p-1.5 rounded-lg bg-emerald-500/10 group-hover:bg-emerald-500/20 transition-colors">
-              <Wallet className="w-6 h-6 text-emerald-500" />
-            </div>
-            <span className="font-bold text-xl text-slate-100">CashDash</span>
+          <Link to="/dashboard" className="flex items-center gap-2.5 group">
+            <Wallet className="w-5 h-5 text-emerald-500" />
+            <span className="font-semibold text-slate-100">CashDash</span>
             {user.isDemo && (
-              <span className="px-2 py-0.5 text-xs bg-gradient-to-r from-amber-500 to-orange-500 text-white rounded-full font-medium">
-                Demo
-              </span>
+              <span className="badge badge-demo">Demo</span>
             )}
           </Link>
 
@@ -55,22 +51,19 @@ export function Navbar() {
               <Link
                 key={to}
                 to={to}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                  location.pathname === to
-                    ? "bg-slate-800 text-emerald-500"
-                    : "text-slate-400 hover:text-slate-100 hover:bg-slate-800"
-                }`}
+                className={`nav-link ${location.pathname === to ? "nav-link-active" : ""}`}
               >
                 <Icon className="w-4 h-4" />
                 {label}
               </Link>
             ))}
+            <div className="w-px h-5 bg-slate-800 mx-2" />
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 px-4 py-2 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-lg transition-colors ml-2"
+              className="nav-link text-slate-500 hover:text-rose-400"
             >
               <LogOut className="w-4 h-4" />
-              Logout
+              <span className="sr-only sm:not-sr-only">Logout</span>
             </button>
           </div>
 
@@ -79,21 +72,21 @@ export function Navbar() {
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             className="md:hidden p-2 text-slate-400 hover:text-slate-100"
           >
-            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+            {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
         </div>
 
         {/* Mobile Menu */}
         {mobileMenuOpen && (
-          <div className="md:hidden py-4 border-t border-slate-800">
+          <div className="md:hidden py-3 border-t border-slate-800/50 animate-in">
             {navLinks.map(({ to, label, icon: Icon }) => (
               <Link
                 key={to}
                 to={to}
                 onClick={() => setMobileMenuOpen(false)}
-                className={`flex items-center gap-3 px-4 py-3 rounded-lg ${
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-lg ${
                   location.pathname === to
-                    ? "bg-slate-800 text-emerald-500"
+                    ? "text-emerald-400 bg-emerald-500/10"
                     : "text-slate-400 hover:text-slate-100"
                 }`}
               >
@@ -101,9 +94,10 @@ export function Navbar() {
                 {label}
               </Link>
             ))}
+            <div className="divider my-2" />
             <button
               onClick={handleLogout}
-              className="flex items-center gap-3 px-4 py-3 text-slate-400 hover:text-rose-400 w-full"
+              className="flex items-center gap-3 px-3 py-2.5 text-slate-500 hover:text-rose-400 w-full"
             >
               <LogOut className="w-5 h-5" />
               Logout

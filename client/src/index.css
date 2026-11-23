@@ -2,154 +2,201 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Base styles */
+/* 
+ * CashDash Design System
+ * Philosophy: Warm, intentional, quiet confidence
+ * Palette: Slate base, emerald accent, warm neutrals
+ */
+
+:root {
+  --color-surface: 15 23 42;      /* slate-900 */
+  --color-surface-raised: 30 41 59; /* slate-800 */
+  --color-accent: 16 185 129;     /* emerald-500 */
+  --color-text: 248 250 252;      /* slate-50 */
+  --color-text-muted: 148 163 184; /* slate-400 */
+}
+
+/* Base */
 body {
-  @apply bg-slate-950 text-slate-100 antialiased;
+  @apply bg-slate-950 text-slate-50 antialiased;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
 }
 
-/* Form elements */
+/* Typography scale - tighter, more intentional */
+h1 { @apply text-3xl font-semibold tracking-tight text-slate-50; }
+h2 { @apply text-xl font-medium tracking-tight text-slate-100; }
+h3 { @apply text-base font-medium text-slate-200; }
+
+/* Forms - minimal, functional */
 input, select, textarea {
-  @apply bg-slate-800 border border-slate-700 rounded-lg px-4 py-2 text-slate-100 
-         placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-emerald-500 
-         focus:border-transparent transition-all duration-200;
+  @apply bg-slate-900 border border-slate-700/50 rounded-lg px-4 py-2.5
+         text-slate-50 placeholder-slate-500
+         focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/20
+         transition-colors duration-150;
 }
 
-input:hover:not(:focus), select:hover:not(:focus), textarea:hover:not(:focus) {
-  @apply border-slate-600;
+input:hover:not(:focus), select:hover:not(:focus) {
+  @apply border-slate-600/50;
 }
 
+/* Buttons - solid, confident */
 button {
-  @apply font-medium transition-all duration-200 cursor-pointer;
+  @apply font-medium transition-all duration-150;
 }
 
-/* Button variants */
 .btn-primary {
-  @apply bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white px-4 py-2 
-         rounded-lg disabled:opacity-50 disabled:cursor-not-allowed shadow-sm 
-         hover:shadow-md hover:shadow-emerald-500/20;
+  @apply bg-emerald-600 text-white px-5 py-2.5 rounded-lg
+         hover:bg-emerald-500 active:bg-emerald-700
+         disabled:opacity-40 disabled:cursor-not-allowed;
 }
 
 .btn-secondary {
-  @apply bg-slate-700 hover:bg-slate-600 active:bg-slate-800 text-slate-100 px-4 py-2 
-         rounded-lg shadow-sm hover:shadow-md;
+  @apply bg-slate-800 text-slate-200 px-5 py-2.5 rounded-lg border border-slate-700/50
+         hover:bg-slate-700 hover:border-slate-600/50 active:bg-slate-800;
+}
+
+.btn-ghost {
+  @apply text-slate-400 px-4 py-2 rounded-lg
+         hover:text-slate-200 hover:bg-slate-800/50;
 }
 
 .btn-danger {
-  @apply bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white px-4 py-2 
-         rounded-lg shadow-sm hover:shadow-md hover:shadow-rose-500/20;
+  @apply bg-rose-600/90 text-white px-5 py-2.5 rounded-lg
+         hover:bg-rose-500 active:bg-rose-700;
 }
 
-/* Card component */
+/* Cards - subtle elevation */
 .card {
-  @apply bg-slate-900 border border-slate-800 rounded-xl p-6 shadow-lg 
-         shadow-slate-950/50 transition-all duration-200;
+  @apply bg-slate-900/80 border border-slate-800/50 rounded-xl p-6;
 }
 
-.card-hover {
-  @apply hover:border-slate-700 hover:shadow-xl hover:shadow-slate-950/70;
+.card-interactive {
+  @apply hover:border-slate-700/50 hover:bg-slate-900 transition-colors duration-150 cursor-pointer;
 }
 
-/* Animations */
-@keyframes slideDown {
-  from {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+/* Specific UI patterns */
+.stat-card {
+  @apply bg-gradient-to-br from-slate-900 to-slate-900/50 
+         border border-slate-800/30 rounded-xl p-6;
+}
+
+.nav-link {
+  @apply flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm
+         text-slate-400 hover:text-slate-100 hover:bg-slate-800/50
+         transition-colors duration-150;
+}
+
+.nav-link-active {
+  @apply text-emerald-400 bg-emerald-500/10;
+}
+
+/* Badge */
+.badge {
+  @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium;
+}
+
+.badge-demo {
+  @apply bg-amber-500/20 text-amber-400 border border-amber-500/20;
+}
+
+/* Alert states */
+.alert {
+  @apply flex items-start gap-3 p-4 rounded-lg text-sm;
+}
+
+.alert-error {
+  @apply bg-rose-500/10 border border-rose-500/20 text-rose-200;
+}
+
+.alert-warning {
+  @apply bg-amber-500/10 border border-amber-500/20 text-amber-200;
+}
+
+.alert-success {
+  @apply bg-emerald-500/10 border border-emerald-500/20 text-emerald-200;
+}
+
+/* Divider */
+.divider {
+  @apply border-t border-slate-800/50;
+}
+
+/* Animations - subtle, purposeful */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes slideUp {
-  from {
-    transform: translateY(0);
-    opacity: 1;
-  }
-  to {
-    transform: translateY(-100%);
-    opacity: 0;
-  }
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-100%); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
-@keyframes scaleIn {
-  from {
-    transform: scale(0.95);
-    opacity: 0;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
+.animate-in {
+  animation: fadeIn 0.2s ease-out;
 }
 
-.animate-slideDown {
-  animation: slideDown 0.3s ease-out;
-}
-
-.animate-slideUp {
+.animate-slide-up {
   animation: slideUp 0.3s ease-out;
 }
 
-.animate-fadeIn {
-  animation: fadeIn 0.3s ease-out;
+.animate-slide-down {
+  animation: slideDown 0.3s ease-out;
 }
 
-.animate-scaleIn {
-  animation: scaleIn 0.2s ease-out;
+/* Progress bar */
+.progress-bar {
+  @apply h-1 bg-slate-800 rounded-full overflow-hidden;
 }
 
-/* Gradient utilities */
-.gradient-border {
-  @apply relative;
+.progress-bar-fill {
+  @apply h-full bg-emerald-500 rounded-full transition-all duration-500;
 }
 
-.gradient-border::before {
-  content: '';
-  @apply absolute inset-0 rounded-xl p-[1px] -z-10;
-  background: linear-gradient(135deg, theme('colors.emerald.500/30'), theme('colors.slate.700'), theme('colors.emerald.500/30'));
-}
-
-/* Subtle background gradient for auth pages */
-.auth-gradient {
-  background: radial-gradient(ellipse at top, theme('colors.slate.900'), theme('colors.slate.950')),
-              radial-gradient(ellipse at bottom right, theme('colors.emerald.950/20'), transparent);
-}
-
-/* Focus ring utility */
-.focus-ring {
-  @apply focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 
-         focus:ring-offset-slate-900;
-}
-
-/* Scrollbar styling */
+/* Scrollbar - minimal */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-slate-900;
+  @apply bg-transparent;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-700 rounded-full;
+  @apply bg-slate-700/50 rounded-full;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  @apply bg-slate-600;
+  @apply bg-slate-600/50;
 }
 
-/* Selection styling */
+/* Selection */
 ::selection {
-  @apply bg-emerald-500/30 text-emerald-100;
+  @apply bg-emerald-500/30;
+}
+
+/* Focus visible for accessibility */
+:focus-visible {
+  @apply outline-none ring-2 ring-emerald-500/50 ring-offset-2 ring-offset-slate-950;
+}
+
+/* Link styling */
+a {
+  @apply text-emerald-400 hover:text-emerald-300 transition-colors;
+}
+
+/* Table styling for group details */
+.table-row {
+  @apply border-b border-slate-800/30 last:border-0;
+}
+
+/* Loading skeleton */
+.skeleton {
+  @apply bg-slate-800/50 rounded animate-pulse;
 }

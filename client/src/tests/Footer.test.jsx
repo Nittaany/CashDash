@@ -24,7 +24,7 @@ describe("Footer", () => {
 
   it("renders API status link", () => {
     render(<Footer />);
-    const statusLink = screen.getByText("API Status");
+    const statusLink = screen.getByText("API");
     expect(statusLink).toBeInTheDocument();
     expect(statusLink.closest("a")).toHaveAttribute("href", "https://cashdash-api.onrender.com/api/health");
   });

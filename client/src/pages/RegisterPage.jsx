@@ -56,23 +56,26 @@ export function RegisterPage() {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center py-8">
-      <div className="card w-full max-w-md">
+    <div className="min-h-[85vh] flex items-center justify-center px-4 py-8">
+      <div className="w-full max-w-sm animate-slide-up">
+        {/* Header */}
         <div className="text-center mb-8">
-          <Wallet className="w-12 h-12 text-emerald-500 mx-auto mb-4" />
-          <h1 className="text-2xl font-bold text-slate-100">Create Account</h1>
-          <p className="text-slate-400 mt-2">Start tracking your expenses today</p>
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-emerald-500/10 mb-4">
+            <Wallet className="w-6 h-6 text-emerald-500" />
+          </div>
+          <h1 className="text-2xl font-semibold text-slate-50 mb-2">Create account</h1>
+          <p className="text-slate-400 text-sm">Start tracking your expenses</p>
         </div>
 
         {error && (
-          <div className="mb-4 p-3 bg-rose-900/50 border border-rose-700 rounded-lg text-rose-200 text-sm">
-            {error}
+          <div className="alert alert-error mb-4">
+            <span>{error}</span>
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Name *</label>
+            <label className="block text-sm text-slate-400 mb-1.5">Name</label>
             <input
               type="text"
               name="name"
@@ -86,7 +89,7 @@ export function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Email *</label>
+            <label className="block text-sm text-slate-400 mb-1.5">Email</label>
             <input
               type="email"
               name="email"
@@ -99,56 +102,55 @@ export function RegisterPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Password *</label>
+            <label className="block text-sm text-slate-400 mb-1.5">Password</label>
             <input
               type="password"
               name="password"
               value={formData.password}
               onChange={handleChange}
-              placeholder="Min 8 chars, 1 letter, 1 number"
+              placeholder="Min 8 chars, letter + number"
               required
               className="w-full"
             />
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Phone (optional)</label>
-            <input
-              type="tel"
-              name="phone"
-              value={formData.phone}
-              onChange={handleChange}
-              placeholder="+977 98XXXXXXXX"
-              className="w-full"
-            />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-sm text-slate-400 mb-1.5">Phone</label>
+              <input
+                type="tel"
+                name="phone"
+                value={formData.phone}
+                onChange={handleChange}
+                placeholder="Optional"
+                className="w-full"
+              />
+            </div>
+            <div>
+              <label className="block text-sm text-slate-400 mb-1.5">Currency</label>
+              <select
+                name="currency"
+                value={formData.currency}
+                onChange={handleChange}
+                className="w-full"
+              >
+                <option value="NPR">NPR</option>
+                <option value="INR">INR</option>
+                <option value="USD">USD</option>
+              </select>
+            </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">
-              Payment Handle (optional)
-            </label>
+            <label className="block text-sm text-slate-400 mb-1.5">Payment Handle</label>
             <input
               type="text"
               name="paymentHandle"
               value={formData.paymentHandle}
               onChange={handleChange}
-              placeholder="UPI ID, eSewa, Fonepay"
+              placeholder="UPI ID, eSewa (optional)"
               className="w-full"
             />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Currency</label>
-            <select
-              name="currency"
-              value={formData.currency}
-              onChange={handleChange}
-              className="w-full"
-            >
-              <option value="NPR">NPR - Nepali Rupee</option>
-              <option value="INR">INR - Indian Rupee</option>
-              <option value="USD">USD - US Dollar</option>
-            </select>
           </div>
 
           <button
@@ -157,13 +159,13 @@ export function RegisterPage() {
             className="btn-primary w-full flex items-center justify-center gap-2"
           >
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            Create Account
+            Create account
           </button>
         </form>
 
-        <p className="text-center text-slate-400 text-sm mt-6">
+        <p className="text-center text-sm text-slate-500 mt-8">
           Already have an account?{" "}
-          <Link to="/login" className="text-emerald-500 hover:text-emerald-400">
+          <Link to="/login" className="text-emerald-400 hover:text-emerald-300">
             Sign in
           </Link>
         </p>

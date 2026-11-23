@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
 import { api } from "../api/client.js";
-import { Wallet, Loader2, Zap } from "lucide-react";
+import { Wallet, Loader2, Zap, ArrowRight } from "lucide-react";
 
 export function LoginPage() {
   const { login, loginDemo } = useAuth();
@@ -16,18 +16,15 @@ export function LoginPage() {
   const [demoLoading, setDemoLoading] = useState(false);
   const [mailConfigured, setMailConfigured] = useState(false);
 
-  // Check if mail is configured on mount
   useEffect(() => {
     api.get("/api/health")
       .then((data) => setMailConfigured(data.mailConfigured === true))
       .catch(() => setMailConfigured(false));
   }, []);
 
-  // Show message from navigation state (e.g., "Demo session ended")
   useEffect(() => {
     if (location.state?.message) {
       setInfo(location.state.message);
-      // Clear the state so it doesn't persist on refresh
       window.history.replaceState({}, document.title);
     }
   }, [location.state]);
@@ -37,7 +34,6 @@ export function LoginPage() {
     setError("");
     setInfo("");
     setLoading(true);
-
     try {
       await login(email, password);
       navigate("/dashboard");
@@ -52,7 +48,6 @@ export function LoginPage() {
     setError("");
     setInfo("");
     setDemoLoading(true);
-
     try {
       await loginDemo();
       navigate("/dashboard");
@@ -64,34 +59,34 @@ export function LoginPage() {
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center auth-gradient">
-      <div className="card w-full max-w-md animate-scaleIn relative overflow-hidden">
-        {/* Subtle glow effect */}
-        <div className="absolute -top-24 -right-24 w-48 h-48 bg-emerald-500/10 rounded-full blur-3xl" />
-        <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-emerald-500/5 rounded-full blur-3xl" />
-        <div className="text-center mb-8 relative">
-          <div className="inline-flex p-3 bg-emerald-500/10 rounded-2xl mb-4">
-            <Wallet className="w-10 h-10 text-emerald-500" />
+    <div className="min-h-[85vh] flex items-center justify-center px-4">
+      <div className="w-full max-w-sm animate-slide-up">
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-emerald-500/10 mb-4">
+            <Wallet className="w-6 h-6 text-emerald-500" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-100">Welcome to CashDash</h1>
-          <p className="text-slate-400 mt-2">Track expenses, split bills, settle debts</p>
+          <h1 className="text-2xl font-semibold text-slate-50 mb-2">CashDash</h1>
+          <p className="text-slate-400 text-sm">Track expenses. Split bills. Settle debts.</p>
         </div>
 
+        {/* Alerts */}
         {info && (
-          <div className="mb-4 p-3 bg-amber-900/50 border border-amber-700 rounded-lg text-amber-200 text-sm">
-            {info}
+          <div className="alert alert-warning mb-4">
+            <span>{info}</span>
           </div>
         )}
 
         {error && (
-          <div className="mb-4 p-3 bg-rose-900/50 border border-rose-700 rounded-lg text-rose-200 text-sm">
-            {error}
+          <div className="alert alert-error mb-4">
+            <span>{error}</span>
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="space-y-4 mb-6">
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Email</label>
+            <label className="block text-sm text-slate-400 mb-1.5">Email</label>
             <input
               type="email"
               value={email}
@@ -103,7 +98,7 @@ export function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-slate-300 mb-1">Password</label>
+            <label className="block text-sm text-slate-400 mb-1.5">Password</label>
             <input
               type="password"
               value={password}
@@ -113,8 +108,8 @@ export function LoginPage() {
               className="w-full"
             />
             {mailConfigured && (
-              <div className="mt-1 text-right">
-                <Link to="/forgot-password" className="text-sm text-emerald-500 hover:text-emerald-400">
+              <div className="mt-1.5 text-right">
+                <Link to="/forgot-password" className="text-xs text-slate-500 hover:text-emerald-400">
                   Forgot password?
                 </Link>
               </div>
@@ -127,41 +122,45 @@ export function LoginPage() {
             className="btn-primary w-full flex items-center justify-center gap-2"
           >
             {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-            Sign In
+            Sign in
           </button>
         </form>
 
-        <div className="relative my-6">
+        {/* Divider */}
+        <div className="relative mb-6">
           <div className="absolute inset-0 flex items-center">
-            <div className="w-full border-t border-slate-700" />
+            <div className="w-full border-t border-slate-800/50" />
           </div>
-          <div className="relative flex justify-center text-sm">
-            <span className="px-2 bg-slate-900 text-slate-400">or</span>
+          <div className="relative flex justify-center">
+            <span className="px-3 bg-slate-950 text-slate-500 text-xs">or</span>
           </div>
         </div>
 
+        {/* Demo Button */}
         <button
           onClick={handleDemo}
           disabled={demoLoading}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-medium
-                     bg-gradient-to-r from-emerald-600/20 to-emerald-500/10 
-                     border border-emerald-500/50 text-emerald-300
-                     hover:from-emerald-600/30 hover:to-emerald-500/20 hover:border-emerald-400/60
-                     hover:shadow-lg hover:shadow-emerald-500/10
-                     transition-all duration-300"
+          className="w-full flex items-center justify-center gap-2 px-5 py-2.5 rounded-lg
+                     bg-slate-900 border border-slate-800/50 text-slate-300
+                     hover:bg-slate-800 hover:border-slate-700/50
+                     transition-colors duration-150"
         >
           {demoLoading ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
-            <Zap className="w-4 h-4" />
+            <Zap className="w-4 h-4 text-amber-500" />
           )}
-          Try Instant Demo
-          <span className="text-emerald-400/70 text-sm">(No Signup)</span>
+          <span>Try instant demo</span>
+          <ArrowRight className="w-3.5 h-3.5 text-slate-500" />
         </button>
+        <p className="text-center text-xs text-slate-500 mt-2">
+          No signup required · 2 hour session
+        </p>
 
-        <p className="text-center text-slate-400 text-sm mt-6">
+        {/* Register Link */}
+        <p className="text-center text-sm text-slate-500 mt-8">
           Don't have an account?{" "}
-          <Link to="/register" className="text-emerald-500 hover:text-emerald-400">
+          <Link to="/register" className="text-emerald-400 hover:text-emerald-300">
             Sign up
           </Link>
         </p>
