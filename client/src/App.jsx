@@ -105,7 +105,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <ErrorBoundary>
-      <div className="min-h-screen flex flex-col relative" style={{ backgroundColor: "var(--color-canvas)" }}>
+      <div className="min-h-screen flex flex-col relative">
         <AmbientShaderBackground />
         <Navbar />
         <main className="container mx-auto px-4 py-6 flex-1 relative z-10">

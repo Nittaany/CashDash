@@ -8,5 +8,7 @@ describe("AmbientShaderBackground", () => {
 
     expect(screen.getByTestId("ambient-fallback")).toBeInTheDocument();
     expect(container.querySelector("canvas")).not.toBeInTheDocument();
+    expect(container.firstChild).toHaveClass("z-0");
+    expect(container.firstChild).not.toHaveClass("-z-10");
   });
 });

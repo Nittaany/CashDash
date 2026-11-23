@@ -52,13 +52,13 @@ export function AmbientShaderBackground() {
   }, []);
 
   return (
-    <div className="fixed inset-0 -z-10 pointer-events-none overflow-hidden" aria-hidden="true">
+    <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden" aria-hidden="true">
       <div
         data-testid="ambient-fallback"
         className="absolute inset-0"
         style={{
           background:
-            "radial-gradient(1000px 520px at 78% -12%, rgba(5,150,105,0.22), transparent 68%), radial-gradient(780px 420px at 18% -8%, rgba(4,47,46,0.34), transparent 72%), radial-gradient(520px 280px at 62% 72%, rgba(217,119,6,0.07), transparent 72%), linear-gradient(145deg, #05080b 0%, #07090d 55%, #06090b 100%)"
+            "radial-gradient(920px 520px at 82% -10%, rgba(5,150,105,0.38), transparent 68%), radial-gradient(720px 440px at 12% 8%, rgba(6,78,74,0.30), transparent 72%), radial-gradient(620px 360px at 58% 86%, rgba(217,119,6,0.16), transparent 72%), linear-gradient(145deg, #05080b 0%, #07090d 58%, #06100e 100%)"
         }}
       />
       {allowWebGl && (
@@ -68,7 +68,7 @@ export function AmbientShaderBackground() {
           </div>
         </Suspense>
       )}
-      <div className="absolute inset-0 bg-[#05080b]/65" />
+      <div className="absolute inset-0 bg-[#05080b]/45" />
     </div>
   );
 }
