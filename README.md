@@ -5,7 +5,7 @@
 ![Node 22](https://img.shields.io/badge/node-22-brightgreen)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> **TL;DR** — A personal wallet and group expense splitter handling NPR, INR, and USD with **integer money math** (no floating-point drift), **ACID transactions** for wallet operations, and **greedy debt simplification** that minimizes transfers. Built with React 19 + Express 5 + MongoDB, deployed on Vercel/Render/Atlas free tiers. Backed by **258 tests (91% coverage)**, 4-job CI pipeline, and **0 secret leaks**.
+> **TL;DR** — A personal wallet and group expense splitter handling NPR, INR, and USD with **integer money math** (no floating-point drift), **ACID transactions** for wallet operations, and **greedy debt simplification** that minimizes transfers. Built with React 19 + Express 5 + MongoDB, deployed on Vercel/Render/Atlas free tiers. Backed by **264 tests (91% coverage)**, 4-job CI pipeline, and **0 secret leaks**.
 
 **[Live Demo](https://cash-dash-one.vercel.app)** — Click "Try Instant Demo" for a pre-seeded sandbox with 25 expenses and 10 groups (no signup, 2h auto-cleanup).
 
@@ -36,6 +36,21 @@
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
+
+---
+
+### Current UI Sprint
+
+The `v2` client is an atmospheric, dark fintech interface built around clear financial hierarchy rather than decorative density:
+
+- **Server wake state:** `/api/health` is the source of truth. Fast responses render no indicator; cold starts show a delayed progress banner after 1.5 seconds and dismiss cleanly after a successful connection.
+- **Instant demo:** the demo action calls `/api/auth/demo` directly, avoiding an unnecessary health round trip before demo seeding.
+- **Visual system:** obsidian surfaces, warm emerald/teal lighting, restrained amber accents, translucent frosted cards, high-contrast typography, and tabular currency figures.
+- **Live atmosphere:** an intentionally lazy-loaded ShaderGradient canvas adds calm animated depth; a visible CSS mesh fallback remains immediate for first paint, reduced-motion users, test mode, and environments without WebGL.
+- **Interaction polish:** tactile button press states, emerald focus rings, elevated quick actions and group cards, animated category fills, staggered entrances, and modal transitions.
+- **Responsive product UI:** floating pill navigation, readable auth surfaces, currency badges, category pills, table hover states, and consistent footer/API status links.
+
+The UI sprint preserves the existing product structure and all financial, authentication, and demo behaviors.
 
 ---
 
@@ -145,7 +160,7 @@
 
 | Layer | Technologies |
 |:------|:-------------|
-| **Frontend** | React 19, Vite 6, Tailwind CSS 3, React Router 7 |
+| **Frontend** | React 19, Vite 6, Tailwind CSS 3, React Router 7, ShaderGradient/Three |
 | **Backend** | Node 22, Express 5, Mongoose 8, Zod 4 |
 | **Database** | MongoDB Atlas M0 (replica set for ACID transactions) |
 | **Auth** | JWT (15min) + SHA-256 hashed refresh cookies (7d, HttpOnly) |
@@ -252,9 +267,10 @@
 │                     TEST SUMMARY                                │
 ├─────────────────────────────────────────────────────────────────┤
 │  Server: 180 tests │ 91.15% statements │ 91.52% lines          │
-│  Client:  78 tests │                                            │
-│  Total:  258 tests │ 0 secret leaks (gitleaks)                  │
-│  Bundle: 106 kB JS │ 4.3 kB CSS (gzip)                          │
+│  Client:  84 tests │                                            │
+│  Total:  264 tests │ 0 secret leaks (gitleaks)                  │
+│  App bundle: 110.08 kB JS │ 7.29 kB CSS (gzip)                  │
+│  Lazy shader: 294.42 kB JS (gzip)                              │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -271,6 +287,9 @@
 | `PaymentQRModal.test.jsx` | Integer formatting, VPA validation, INR-only QR |
 | `Footer.test.jsx` | Copyright, external links, accessibility |
 | `ServerWakeIndicator.test.jsx` | Wake states, progress timer, auto-dismiss |
+| `AuthContext.test.jsx` | Direct demo login, health state, overlapping wake operations |
+| `LoginPage.test.jsx` | Credentials and one-click instant demo behavior |
+| `AmbientShaderBackground.test.jsx` | Test-mode CSS fallback without WebGL |
 
 ---
 
@@ -296,7 +315,7 @@ cd client && npm install && npm run dev
 ```bash
 cd server && npm test                    # 180 tests
 cd server && npm run test:coverage       # 91.15% statements
-cd client && npm test                    # 66 tests
+cd client && npm test                    # 84 tests
 gitleaks detect --source . --verbose     # 0 leaks
 ```
 
@@ -334,7 +353,7 @@ Groups include: Pokhara Trip, Flatmates, Office Lunch Club, Remote Team Offsite 
 | Version | Focus | Stack |
 |:--------|:------|:------|
 | **v1** | CI/CD pipeline | React + Supabase → Jenkins → AWS S3/CloudFront |
-| **v2** | Full-stack app | React + Express + MongoDB + Docker + GitHub Actions |
+| **v2** | Full-stack app + atmospheric fintech UI | React + Express + MongoDB + Docker + GitHub Actions |
 
 The [`v1` branch](https://github.com/Nittaany/CashDash/tree/v1) preserves the original Jenkins/AWS pipeline. v2 is a ground-up rebuild addressing security and reliability gaps.
 
@@ -360,10 +379,11 @@ stack:
   auth: JWT + SHA-256 hashed refresh cookie (HttpOnly)
 tests:
   server: 180
-  client: 78
+  client: 84
+  total: 264
   coverage_statements: 91.15%
   coverage_lines: 91.52%
-bundle_gzip: { js: 106kb, css: 4.3kb }
+bundle_gzip: { app_js: 110.08kb, css: 7.29kb, lazy_shader_js: 294.42kb }
 endpoints: 28
 demo_data: { expenses: 25, groups: 10 }
 ```
