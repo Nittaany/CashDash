@@ -56,6 +56,8 @@ const resendVerificationSchema = z.strictObject({
 // Token helpers
 const ACCESS_TTL = "15m";
 const REFRESH_TTL = "7d";
+const EMAIL_REQUEST_LIMIT = 3;
+const EMAIL_REQUEST_WINDOW_MS = 60 * 60 * 1000;
 
 function generateAccessToken(user) {
   return jwt.sign(
@@ -75,6 +77,43 @@ function generateRefreshToken(user) {
 
 function hashToken(token) {
   return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+async function consumeEmailRequest(userId, countField, windowField) {
+  const now = new Date();
+  const windowStart = new Date(now.getTime() - EMAIL_REQUEST_WINDOW_MS);
+  const windowExpired = {
+    $lte: [{ $ifNull: [`$${windowField}`, new Date(0)] }, windowStart]
+  };
+
+  const user = await User.findOneAndUpdate(
+    {
+      _id: userId,
+      $or: [
+        { [windowField]: { $lte: windowStart } },
+        { [windowField]: { $exists: false } },
+        { [windowField]: null },
+        { [countField]: { $lt: EMAIL_REQUEST_LIMIT } }
+      ]
+    },
+    [{
+      $set: {
+        [countField]: {
+          $cond: [
+            windowExpired,
+            1,
+            { $add: [{ $ifNull: [`$${countField}`, 0] }, 1] }
+          ]
+        },
+        [windowField]: {
+          $cond: [windowExpired, now, `$${windowField}`]
+        }
+      }
+    }],
+    { new: true }
+  );
+
+  return user !== null;
 }
 
 function compareHashes(a, b) {
@@ -315,6 +354,15 @@ router.post("/forgot-password", authRateLimiter, validate({ body: forgotPassword
       return res.json(genericResponse);
     }
 
+    const requestAllowed = await consumeEmailRequest(
+      user._id,
+      "passwordResetRequestCount",
+      "passwordResetRequestWindowStartedAt"
+    );
+    if (!requestAllowed) {
+      return res.json(genericResponse);
+    }
+
     // Generate 32-byte random token
     const resetToken = crypto.randomBytes(32).toString("hex");
     const resetTokenHash = crypto.createHash("sha256").update(resetToken).digest("hex");
@@ -325,8 +373,9 @@ router.post("/forgot-password", authRateLimiter, validate({ body: forgotPassword
     user.resetTokenExpiresAt = resetTokenExpiresAt;
     await user.save();
 
-    // Send email (uses mock transport in dev/test)
-    await sendPasswordResetEmail(email, resetToken);
+    void sendPasswordResetEmail(email, resetToken).catch(() => {
+      console.error("[AUTH] Password reset email could not be sent");
+    });
 
     res.json(genericResponse);
   } catch (error) {
@@ -425,6 +474,15 @@ router.post("/resend-verification", authRateLimiter, validate({ body: resendVeri
       return res.json(genericResponse);
     }
 
+    const requestAllowed = await consumeEmailRequest(
+      user._id,
+      "verificationRequestCount",
+      "verificationRequestWindowStartedAt"
+    );
+    if (!requestAllowed) {
+      return res.json(genericResponse);
+    }
+
     // Generate new verification token
     const verifyToken = crypto.randomBytes(32).toString("hex");
     const emailVerifyTokenHash = crypto.createHash("sha256").update(verifyToken).digest("hex");
@@ -434,8 +492,9 @@ router.post("/resend-verification", authRateLimiter, validate({ body: resendVeri
     user.emailVerifyExpiresAt = emailVerifyExpiresAt;
     await user.save();
 
-    // Send verification email
-    await sendVerificationEmail(email, verifyToken);
+    void sendVerificationEmail(email, verifyToken).catch(() => {
+      console.error("[AUTH] Verification email could not be sent");
+    });
 
     res.json(genericResponse);
   } catch (error) {
