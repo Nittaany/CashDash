@@ -19,10 +19,6 @@ const mockTransport = {
   async send(to, subject, html) {
     const email = { to, subject, html, sentAt: new Date() };
     this.sentEmails.push(email);
-    // Never log email bodies or tokens - just the fact an email was queued
-    if (process.env.NODE_ENV === "development") {
-      console.log(`[MAILER] Email queued for ${to}`);
-    }
     return email;
   },
   clear() {

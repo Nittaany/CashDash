@@ -22,6 +22,7 @@ export function isValidUpiVpa(handle) {
  */
 export function buildUpiUri(payeeHandle, payeeName, amountMinor) {
   if (!isValidUpiVpa(payeeHandle)) return null;
+  if (typeof payeeName !== "string" || !payeeName.trim()) return null;
   if (!Number.isInteger(amountMinor) || amountMinor <= 0) return null;
   
   // Integer math only - no floating point
@@ -29,12 +30,13 @@ export function buildUpiUri(payeeHandle, payeeName, amountMinor) {
   const frac = String(amountMinor % 100).padStart(2, "0");
   const amountStr = `${whole}.${frac}`;
   
-  const params = new URLSearchParams();
-  params.set("pa", payeeHandle);
-  params.set("pn", payeeName);
-  params.set("am", amountStr);
-  params.set("cu", "INR"); // UPI only supports INR
-  return `upi://pay?${params.toString()}`;
+  const params = [
+    ["pa", payeeHandle],
+    ["pn", payeeName],
+    ["am", amountStr],
+    ["cu", "INR"]
+  ].map(([key, value]) => `${key}=${encodeURIComponent(value)}`);
+  return `upi://pay?${params.join("&")}`;
 }
 
 export function PaymentQRModal({ isOpen, onClose, payeeHandle, payeeName, amountMinor, currency }) {
@@ -42,9 +44,11 @@ export function PaymentQRModal({ isOpen, onClose, payeeHandle, payeeName, amount
 
   if (!isOpen) return null;
 
-  // UPI only works for INR with valid VPA
-  const isUpiSupported = currency === "INR" && isValidUpiVpa(payeeHandle);
+  // UPI only works for INR with a valid VPA and payee name
+  const hasPayeeName = typeof payeeName === "string" && Boolean(payeeName.trim());
+  const isUpiSupported = currency === "INR" && isValidUpiVpa(payeeHandle) && hasPayeeName;
   const upiUri = isUpiSupported ? buildUpiUri(payeeHandle, payeeName, amountMinor) : null;
+  const displayPayeeName = hasPayeeName ? payeeName : "payee";
 
   // Format amount for display using integer math
   const whole = Math.floor(amountMinor / 100);
@@ -84,7 +88,7 @@ export function PaymentQRModal({ isOpen, onClose, payeeHandle, payeeName, amount
         onClick={(e) => e.stopPropagation()}
       >
         <h2 id="payment-qr-title" className="text-lg font-semibold text-white mb-4 text-center">
-          Pay {payeeName}
+          Pay {displayPayeeName}
         </h2>
         
         <div className="flex flex-col items-center gap-4">
@@ -104,9 +108,11 @@ export function PaymentQRModal({ isOpen, onClose, payeeHandle, payeeName, amount
           {!isUpiSupported && (
             <div className="text-center p-4 bg-slate-700 rounded-lg">
               <p className="text-slate-300 text-sm">
-                {currency !== "INR" 
+                {currency !== "INR"
                   ? `UPI QR is only available for INR payments. Please use the payment handle below for ${currency}.`
-                  : "Invalid UPI ID format. Please copy the payment handle below."}
+                  : hasPayeeName
+                    ? "Invalid UPI ID format. Please copy the payment handle below."
+                    : "Payee name is unavailable, so a UPI QR cannot be generated."}
               </p>
             </div>
           )}

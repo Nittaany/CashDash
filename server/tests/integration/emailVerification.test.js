@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import request from "supertest";
 import "./setup.js";
 import { app } from "../../src/app.js";
@@ -138,7 +138,13 @@ describe("Email Verification Flow", () => {
       expect(res.body.message).toContain("If an unverified account exists");
       
       // Verify email was sent
+      await vi.waitFor(() => expect(mockTransport.sentEmails).toHaveLength(1));
       expect(mockTransport.sentEmails.length).toBe(1);
+
+      const unknownRes = await request(app)
+        .post("/api/auth/resend-verification")
+        .send({ email: "nonexistent@example.com" });
+      expect(unknownRes.body).toEqual(res.body);
     });
 
     it("returns generic 200 for non-existent user (anti-enumeration)", async () => {
@@ -151,6 +157,20 @@ describe("Email Verification Flow", () => {
       
       // No email sent
       expect(mockTransport.sentEmails.length).toBe(0);
+    });
+
+    it("throttles verification requests to three per user per hour", async () => {
+      const responses = [];
+      for (let i = 0; i < 4; i += 1) {
+        responses.push(await request(app)
+          .post("/api/auth/resend-verification")
+          .send({ email: "resend@example.com" }));
+      }
+
+      expect(responses.map((response) => response.status)).toEqual([200, 200, 200, 200]);
+      expect(responses[3].body).toEqual(responses[0].body);
+      await vi.waitFor(() => expect(mockTransport.sentEmails).toHaveLength(3));
+      expect(mockTransport.sentEmails).toHaveLength(3);
     });
 
     it("returns generic 200 for already verified user (no email sent)", async () => {

@@ -32,7 +32,7 @@ describe("buildUpiUri", () => {
     
     expect(uri).toContain("upi://pay?");
     expect(uri).toContain("pa=user%40upi");
-    expect(uri).toContain("pn=John+Doe");
+    expect(uri).toContain("pn=John%20Doe");
     expect(uri).toContain("am=100.50"); // 10050 paisa = 100.50
     expect(uri).toContain("cu=INR");
   });
@@ -61,6 +61,11 @@ describe("buildUpiUri", () => {
     expect(buildUpiUri("user@upi", "Name", 0)).toBe(null);
     expect(buildUpiUri("user@upi", "Name", -100)).toBe(null);
     expect(buildUpiUri("user@upi", "Name", 100.5)).toBe(null); // not integer
+  });
+
+  it("returns null when the payee name is missing", () => {
+    expect(buildUpiUri("user@upi", "", 1000)).toBe(null);
+    expect(buildUpiUri("user@upi", undefined, 1000)).toBe(null);
   });
 });
 

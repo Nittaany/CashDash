@@ -16,6 +16,10 @@ const userSchema = new mongoose.Schema(
     refreshTokenHash: { type: String, select: false },
     resetTokenHash: { type: String, select: false },
     resetTokenExpiresAt: { type: Date, select: false },
+    passwordResetRequestCount: { type: Number, default: 0 },
+    passwordResetRequestWindowStartedAt: { type: Date },
+    verificationRequestCount: { type: Number, default: 0 },
+    verificationRequestWindowStartedAt: { type: Date },
     expiresAt: { type: Date, index: { expires: 0 } } // TTL index for ephemeral demo users
   },
   { timestamps: true }
