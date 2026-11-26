@@ -5,7 +5,7 @@
 ![Node 22](https://img.shields.io/badge/node-22-brightgreen)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> **TL;DR** — A personal wallet and group expense splitter handling NPR, INR, and USD with **integer money math** (no floating-point drift), **ACID transactions** for wallet operations, and **greedy debt simplification** that minimizes transfers. Built with React 19 + Express 5 + MongoDB, deployed on Vercel/Render/Atlas free tiers. Backed by **306 tests**, 4-job CI pipeline, and **0 secret leaks**.
+> **TL;DR** — A personal wallet and group expense splitter handling NPR, INR, and USD with **integer money math** (no floating-point drift), **ACID transactions** for wallet operations, and **greedy debt simplification** that minimizes transfers. Built with React 19 + Express 5 + MongoDB, deployed on Vercel/Render/Atlas free tiers. Backed by **336 tests**, 4-job CI pipeline, and **0 secret leaks**.
 
 **[Live Demo](https://cash-dash-one.vercel.app)** — Click "Try Instant Demo" for a pre-seeded sandbox with 25 expenses and 10 groups (no signup, 2h auto-cleanup).
 
@@ -152,6 +152,21 @@ The Render service requires real email delivery when production email verificati
 | `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Optional GitHub OAuth application credentials; configure both or neither. |
 | `OAUTH_STATE_SECRET` | Random secret of at least 32 characters used to sign short-lived OAuth state cookies. Required when either provider is configured. |
 
+### Verified signup and account recovery
+
+With `REQUIRE_EMAIL_VERIFICATION=true`, signup creates a temporary pending registration that expires after 24 hours. A permanent user account is created only after the one-time verification link is accepted; the user can then log in. Signup returns the same account-neutral response for eligible, existing, pending, and ineligible addresses; repeating signup does not resend a message, so use the resend-verification flow if needed.
+
+Resend-verification and forgot-password responses are also account-neutral. A confirmation does not guarantee that an email was sent: no message may mean the address is not on file, the account is not eligible for that flow, or email delivery is temporarily unavailable. Password-reset emails go only to eligible permanent password accounts; reset links expire after 15 minutes.
+
+Password and provider signup check the locally bundled `disposable-email-domains-js` list. This does not make an external lookup request, and the list cannot identify every temporary-email provider. MongoDB's unique normalized-email index remains authoritative for email uniqueness; names are not unique and a Bloom filter is not used.
+
+### Signup and recovery limits
+
+- Auth requests share an IP-based limit of 10 requests per 15 minutes.
+- Signup, verification resend, and password-reset requests are limited to 3 per normalized email per hour.
+- Signup and verification resend also use a resettable, first-party `cashdash_device` cookie for a 10-request per 15-minute limit. The cookie is HttpOnly, `SameSite=Lax`, scoped to `/api/auth`, and Secure in production.
+- The signup form discloses this cookie. CashDash does not use passive browser fingerprinting.
+
 Set `VITE_OAUTH_PROVIDERS` in Vercel to the comma-separated public provider list, such as `google,github`, matching the providers configured on Render. It contains provider names only, never secrets. The login/register pages do not make a backend preflight request, so they remain usable during a cold start.
 
 Register these exact callback URLs in the provider consoles, replacing the origin with the deployed frontend origin:
@@ -162,6 +177,15 @@ https://<your-vercel-domain>/api/auth/oauth/github/callback
 ```
 
 `client/vercel.json` proxies `/api/*` to Render so callbacks and refresh cookies stay on the browser's first-party Vercel origin. OAuth sign-in requires a provider-verified email. Existing password accounts are never linked automatically by matching email; sign in first, then link Google or GitHub from Profile. In development and tests the mailer may use its mock transport; production never falls back to mock email.
+
+### Deployment checklist
+
+These authentication changes are on the local `fix/verified-email-signup` branch and have not been pushed or deployed. They will not affect the live app until the branch is integrated into `v2` and both services are deployed.
+
+- [ ] In Render, set `RESEND_API_KEY`, `MAIL_FROM`, `APP_URL`, and `CLIENT_URL`; keep `REQUIRE_EMAIL_VERIFICATION=true`. Verify the sender domain with Resend. Never put credential values in source control.
+- [ ] If enabling Google or GitHub, configure each provider's client ID and secret plus `OAUTH_STATE_SECRET` in Render, and register the callback URLs above in the provider console.
+- [ ] In Vercel, set `VITE_OAUTH_PROVIDERS` to the comma-separated names of the enabled providers (`google`, `github`, or both), then redeploy the client.
+- [ ] Push/integrate the feature branch into `v2`, then deploy the backend and frontend. Confirm verification, resend, and password-recovery email delivery using the production mail configuration.
 
 ---
 
