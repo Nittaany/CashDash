@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { api, setAccessToken, clearAccessToken } from "../api/client.js";
+import { api, checkApiHealth, setAccessToken, clearAccessToken } from "../api/client.js";
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -12,7 +12,49 @@ describe("API client", () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.restoreAllMocks();
+  });
+
+  it("retries demo login up to three times for transient proxy statuses", async () => {
+    vi.useFakeTimers();
+    mockFetch
+      .mockResolvedValueOnce({ status: 502, ok: false })
+      .mockResolvedValueOnce({ status: 503, ok: false })
+      .mockResolvedValueOnce({ status: 504, ok: false })
+      .mockResolvedValueOnce({
+        status: 200,
+        ok: true,
+        json: () => Promise.resolve({ accessToken: "demo-token" })
+      });
+
+    const request = api.post("/api/auth/demo", {});
+    await vi.runAllTimersAsync();
+
+    await expect(request).resolves.toEqual({ accessToken: "demo-token" });
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+  });
+
+  it("retries health checks after network failures up to three times", async () => {
+    vi.useFakeTimers();
+    mockFetch.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    const request = checkApiHealth();
+    await vi.runAllTimersAsync();
+
+    await expect(request).resolves.toBe(false);
+    expect(mockFetch).toHaveBeenCalledTimes(4);
+  });
+
+  it("does not retry transient errors for other endpoints", async () => {
+    mockFetch.mockResolvedValueOnce({
+      status: 503,
+      ok: false,
+      json: () => Promise.resolve({ error: "Unavailable" })
+    });
+
+    await expect(api.get("/api/wallet")).rejects.toThrow("Unavailable");
+    expect(mockFetch).toHaveBeenCalledTimes(1);
   });
 
   it("retries once after 401 with silent refresh", async () => {

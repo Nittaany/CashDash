@@ -18,6 +18,13 @@ export function errorHandler(error, _request, response, next) {
 
   const isProd = process.env.NODE_ENV === "production";
 
+  // CORS rejects disallowed origins with this error message.
+  if (error.message === "Not allowed by CORS") {
+    return response.status(403).json({
+      error: "Origin not allowed by CORS"
+    });
+  }
+
   // Zod validation errors (v4 uses error.issues)
   if (error.name === "ZodError" || Array.isArray(error.issues)) {
     return response.status(400).json({
