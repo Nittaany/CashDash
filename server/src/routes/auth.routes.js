@@ -525,50 +525,58 @@ router.patch("/me", authenticate, blockDemoUser, validate({ body: updateProfileS
 });
 
 // POST /api/auth/forgot-password
-router.post("/forgot-password", authRateLimiter, validate({ body: forgotPasswordSchema }), async (req, res, next) => {
-  try {
-    const { email } = req.validated.body;
-
-    // Always return success to prevent email enumeration
-    const genericResponse = { message: "If an account exists for that email, we will send a reset link when delivery is available." };
-
-    const user = await User.findOne({ email });
-    
-    // Don't generate tokens for non-existent users or demo users
-    if (!user || user.isDemo) {
-      return res.json(genericResponse);
-    }
-
-    const requestAllowed = await consumeEmailRequest(
-      user._id,
-      "passwordResetRequestCount",
-      "passwordResetRequestWindowStartedAt"
-    );
-    if (!requestAllowed) {
-      return res.json(genericResponse);
-    }
-
-    // Generate 32-byte random token
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    const resetTokenHash = crypto.createHash("sha256").update(resetToken).digest("hex");
-    const resetTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
-
-    // Store hashed token and expiry
-    user.resetTokenHash = resetTokenHash;
-    user.resetTokenExpiresAt = resetTokenExpiresAt;
-    await user.save();
-
+router.post(
+  "/forgot-password",
+  authRateLimiter,
+  validate({ body: forgotPasswordSchema }),
+  authEmailRateLimiter,
+  async (req, res, next) => {
     try {
-      await sendPasswordResetEmail(email, resetToken);
-    } catch {
-      console.error("[AUTH] Password reset email could not be sent");
-    }
+      const { email } = req.validated.body;
 
-    res.json(genericResponse);
-  } catch (error) {
-    next(error);
+      // Always return success to prevent email enumeration
+      const genericResponse = { message: "If an account exists for that email, we will send a reset link when delivery is available." };
+
+      const user = isDisposableEmailAddress(email)
+        ? null
+        : await User.findOne({ email }).select("+passwordHash");
+
+      // Only permanent password accounts can use password recovery
+      if (!user || user.isDemo || !user.passwordHash) {
+        return res.json(genericResponse);
+      }
+
+      const requestAllowed = await consumeEmailRequest(
+        user._id,
+        "passwordResetRequestCount",
+        "passwordResetRequestWindowStartedAt"
+      );
+      if (!requestAllowed) {
+        return res.json(genericResponse);
+      }
+
+      // Generate 32-byte random token
+      const resetToken = crypto.randomBytes(32).toString("hex");
+      const resetTokenHash = crypto.createHash("sha256").update(resetToken).digest("hex");
+      const resetTokenExpiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+      // Store hashed token and expiry
+      user.resetTokenHash = resetTokenHash;
+      user.resetTokenExpiresAt = resetTokenExpiresAt;
+      await user.save();
+
+      try {
+        await sendPasswordResetEmail(email, resetToken);
+      } catch {
+        console.error("[AUTH] Password reset email could not be sent");
+      }
+
+      res.json(genericResponse);
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
 // POST /api/auth/reset-password
 router.post("/reset-password", authRateLimiter, validate({ body: resetPasswordSchema }), async (req, res, next) => {
@@ -797,6 +805,11 @@ router.get("/oauth/:provider/callback", async (req, res) => {
       throw error;
     }
 
+    profile = { ...profile, email: profile.email.trim().toLowerCase() };
+    if (isDisposableEmailAddress(profile.email)) {
+      return redirectOAuthError(res, flow, "disposable_email");
+    }
+
     if (flow.mode === "link") {
       const identityOwner = await User.findOne({
         providerIdentities: {
@@ -848,6 +861,9 @@ router.get("/oauth/:provider/callback", async (req, res) => {
     if (!user) {
       const emailOwner = await User.findOne({ email: profile.email });
       if (emailOwner) {
+        if (emailOwner.providerIdentities?.length) {
+          await PendingRegistration.deleteOne({ email: profile.email });
+        }
         return redirectOAuthError(res, flow, "account_exists_sign_in");
       }
 
@@ -872,6 +888,10 @@ router.get("/oauth/:provider/callback", async (req, res) => {
             }
           }).select("+refreshTokenHash");
           if (!user) {
+            const emailOwner = await User.findOne({ email: profile.email });
+            if (emailOwner?.providerIdentities?.length) {
+              await PendingRegistration.deleteOne({ email: profile.email });
+            }
             return redirectOAuthError(res, flow, "account_exists_sign_in");
           }
         } else {
@@ -879,6 +899,8 @@ router.get("/oauth/:provider/callback", async (req, res) => {
         }
       }
     }
+
+    await PendingRegistration.deleteOne({ email: profile.email });
 
     if (env.REQUIRE_EMAIL_VERIFICATION && !user.isEmailVerified) {
       return redirectOAuthError(res, flow, "provider_email_unverified");

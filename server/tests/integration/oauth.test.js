@@ -4,6 +4,8 @@ import crypto from "crypto";
 import "./setup.js";
 import { app } from "../../src/app.js";
 import User from "../../src/models/User.js";
+import PendingRegistration from "../../src/models/PendingRegistration.js";
+import { mockTransport } from "../../src/services/mailer.js";
 import { env } from "../../src/config/env.js";
 
 const CLIENT_ID = "google-client-id";
@@ -49,6 +51,7 @@ async function createPasswordUser(email) {
 
 describe("OAuth authorization flows", () => {
   beforeEach(() => {
+    mockTransport.clear();
     env.GOOGLE_CLIENT_ID = CLIENT_ID;
     env.GOOGLE_CLIENT_SECRET = CLIENT_SECRET;
     env.GITHUB_CLIENT_ID = undefined;
@@ -183,6 +186,83 @@ describe("OAuth authorization flows", () => {
     expect(callback.headers.location).toBe(`${CLIENT_ORIGIN}/login?oauthError=provider_email_unverified`);
     expect(callback.headers["set-cookie"].some((cookie) => cookie.startsWith("refreshToken="))).toBe(false);
     expect(await User.countDocuments()).toBe(0);
+  });
+
+  it.each(["login", "link"])("rejects disposable provider emails during %s", async (mode) => {
+    let start;
+    let existingUser;
+    if (mode === "link") {
+      const registration = await createPasswordUser("disposable-link-owner@example.com");
+      existingUser = await User.findOne({ email: "disposable-link-owner@example.com" });
+      start = await beginGoogleFlow("link", registration.body.accessToken);
+    } else {
+      start = await beginGoogleFlow();
+    }
+
+    const { authorizationUrl, stateCookie } = getFlow(start);
+    fetch.mockResolvedValueOnce(jsonResponse({ access_token: "provider-access-token" }))
+      .mockResolvedValueOnce(jsonResponse({
+        sub: `disposable-google-${mode}`,
+        email: "temporary@mailinator.com",
+        email_verified: true,
+        name: "Disposable Provider User"
+      }));
+
+    const callback = await request(app)
+      .get(`/api/auth/oauth/google/callback?code=oauth-code&state=${authorizationUrl.searchParams.get("state")}`)
+      .set("Cookie", stateCookie);
+
+    const destination = mode === "link" ? "/profile" : "/login";
+    expect(callback.headers.location).toBe(
+      `${CLIENT_ORIGIN}${destination}?oauthError=disposable_email`
+    );
+    if (existingUser) {
+      expect((await User.findById(existingUser._id)).providerIdentities).toHaveLength(0);
+    } else {
+      expect(await User.countDocuments()).toBe(0);
+    }
+  });
+
+  it("replaces a pending password signup with a verified OAuth account without linking credentials", async () => {
+    env.REQUIRE_EMAIL_VERIFICATION = true;
+    const email = "oauth-pending-race@example.com";
+    const registration = await request(app)
+      .post("/api/auth/register")
+      .send({ name: "Pending OAuth User", email, password: "Password123" });
+    const verificationToken = mockTransport.sentEmails[0]?.html.match(/token=([a-f0-9]+)/)?.[1];
+    expect(registration.status).toBe(202);
+    expect(await User.findOne({ email })).toBeNull();
+    expect(await PendingRegistration.countDocuments({ email })).toBe(1);
+
+    const start = await beginGoogleFlow();
+    const { authorizationUrl, stateCookie } = getFlow(start);
+    fetch.mockResolvedValueOnce(jsonResponse({ access_token: "provider-access-token" }))
+      .mockResolvedValueOnce(jsonResponse({
+        sub: "oauth-pending-race",
+        email,
+        email_verified: true,
+        name: "Verified OAuth User"
+      }));
+
+    const callback = await request(app)
+      .get(`/api/auth/oauth/google/callback?code=oauth-code&state=${authorizationUrl.searchParams.get("state")}`)
+      .set("Cookie", stateCookie);
+
+    expect(callback.headers.location).toBe(`${CLIENT_ORIGIN}/oauth/callback`);
+    expect(await PendingRegistration.countDocuments({ email })).toBe(0);
+    const user = await User.findOne({ email }).select("+passwordHash");
+    expect(user.isEmailVerified).toBe(true);
+    expect(user.providerIdentities).toHaveLength(1);
+    expect(user.passwordHash).toBeUndefined();
+
+    const pendingToken = await request(app)
+      .post("/api/auth/verify-email")
+      .send({ token: verificationToken });
+    const passwordLogin = await request(app)
+      .post("/api/auth/login")
+      .send({ email, password: "Password123" });
+    expect(pendingToken.status).toBe(400);
+    expect(passwordLogin.status).toBe(401);
   });
 
   it("does not link a provider automatically from a matching email", async () => {

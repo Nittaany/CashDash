@@ -4,6 +4,7 @@ import crypto from "crypto";
 import "./setup.js";
 import { app } from "../../src/app.js";
 import User from "../../src/models/User.js";
+import PendingRegistration from "../../src/models/PendingRegistration.js";
 import { mockTransport } from "../../src/services/mailer.js";
 import * as mailer from "../../src/services/mailer.js";
 
@@ -54,6 +55,47 @@ describe("Password Reset Flow", () => {
       
       // No email sent
       expect(mockTransport.sentEmails.length).toBe(0);
+    });
+
+    it("keeps pending, demo, disposable, and OAuth-only accounts ineligible for reset email", async () => {
+      await User.create({
+        name: "Disposable Legacy User",
+        email: "legacy@mailinator.com",
+        passwordHash: "password-hash"
+      });
+      await User.create({
+        name: "OAuth Only User",
+        email: "oauth-only@example.com",
+        providerIdentities: [{ provider: "google", providerUserId: "oauth-only-user" }],
+        isEmailVerified: true
+      });
+      await PendingRegistration.create({
+        name: "Pending User",
+        email: "pending-reset@example.com",
+        passwordHash: "password-hash",
+        emailVerifyTokenHash: "pending-token-hash",
+        expiresAt: new Date(Date.now() + 60_000)
+      });
+      const demo = await request(app).post("/api/auth/demo");
+
+      const responses = await Promise.all([
+        "legacy@mailinator.com",
+        "oauth-only@example.com",
+        "pending-reset@example.com",
+        demo.body.user.email
+      ].map((email) => request(app)
+        .post("/api/auth/forgot-password")
+        .send({ email })));
+
+      expect(responses.map(({ status }) => status)).toEqual([200, 200, 200, 200]);
+      expect(responses.every(({ body }) => JSON.stringify(body) === JSON.stringify(responses[0].body)))
+        .toBe(true);
+      expect(mockTransport.sentEmails).toHaveLength(0);
+
+      const oauthUser = await User.findOne({ email: "oauth-only@example.com" })
+        .select("+resetTokenHash +resetTokenExpiresAt");
+      expect(oauthUser.resetTokenHash).toBeUndefined();
+      expect(oauthUser.resetTokenExpiresAt).toBeUndefined();
     });
 
     it("keeps delivery failures account-neutral and does not claim an email was sent", async () => {
