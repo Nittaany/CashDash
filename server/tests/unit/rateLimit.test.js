@@ -1,7 +1,22 @@
 import { describe, it, expect } from "vitest";
+import cookieParser from "cookie-parser";
 import express from "express";
 import request from "supertest";
 import rateLimit from "express-rate-limit";
+import {
+  authDeviceRateLimitKey,
+  authEmailRateLimitKey,
+  createAuthRateLimiter,
+  ensureAuthDeviceId
+} from "../../src/middleware/rateLimit.js";
+import { env } from "../../src/config/env.js";
+
+function cookieValue(response) {
+  return response.headers["set-cookie"]
+    .find((cookie) => cookie.startsWith("cashdash_device="))
+    .split(";")[0]
+    .slice("cashdash_device=".length);
+}
 
 describe("Rate Limiter", () => {
   it("returns 429 after exceeding max requests", async () => {
@@ -49,5 +64,114 @@ describe("Rate Limiter", () => {
       res.headers["x-ratelimit-limit"] === "5" ||
       res.headers["ratelimit-limit"] === "5";
     expect(hasRateLimitHeaders).toBe(true);
+  });
+
+  it("sets a random, scoped device cookie with the required attributes", async () => {
+    const app = express();
+    app.use(cookieParser());
+    app.get("/device", ensureAuthDeviceId, (req, res) => {
+      res.json({ deviceId: req.authDeviceId });
+    });
+
+    const first = await request(app).get("/device");
+    const second = await request(app).get("/device");
+
+    expect(first.body.deviceId).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(second.body.deviceId).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect(second.body.deviceId).not.toBe(first.body.deviceId);
+
+    const cookie = first.headers["set-cookie"].find((value) =>
+      value.startsWith("cashdash_device=")
+    );
+    expect(cookie).toContain("HttpOnly");
+    expect(cookie).toContain("SameSite=Lax");
+    expect(cookie).toContain("Path=/api/auth");
+    expect(cookie).toContain("Max-Age=2592000");
+    expect(cookie).not.toContain("Secure");
+  });
+
+  it("marks the device cookie Secure in production", async () => {
+    const originalNodeEnv = env.NODE_ENV;
+    env.NODE_ENV = "production";
+
+    try {
+      const app = express();
+      app.use(cookieParser());
+      app.get("/device", ensureAuthDeviceId, (req, res) => {
+        res.json({ deviceId: req.authDeviceId });
+      });
+
+      const response = await request(app).get("/device");
+      const cookie = response.headers["set-cookie"].find((value) =>
+        value.startsWith("cashdash_device=")
+      );
+
+      expect(cookie).toContain("Secure");
+    } finally {
+      env.NODE_ENV = originalNodeEnv;
+    }
+  });
+
+  it("uses normalized, domain-separated HMAC keys for email and device values", () => {
+    const normalizedEmailKey = authEmailRateLimitKey(" Person@EXAMPLE.com ");
+
+    expect(normalizedEmailKey).toBe(authEmailRateLimitKey("person@example.com"));
+    expect(normalizedEmailKey).not.toContain("person@example.com");
+    expect(authDeviceRateLimitKey("person@example.com")).not.toBe(normalizedEmailKey);
+    expect(authDeviceRateLimitKey("secret-device-id")).not.toContain("secret-device-id");
+  });
+
+  it("keeps IP, normalized-email, and device request buckets independent", async () => {
+    const app = express();
+
+    app.set("trust proxy", false);
+    app.use(express.json());
+    app.use(cookieParser());
+    app.use(createAuthRateLimiter({
+      windowMs: 60_000,
+      limit: 3,
+      message: { error: "IP limit" },
+      skipInTest: false
+    }));
+    app.use(ensureAuthDeviceId);
+    app.use((req, _res, next) => {
+      req.validated = { body: req.body };
+      next();
+    });
+    app.use(createAuthRateLimiter({
+      windowMs: 60_000,
+      limit: 1,
+      message: { error: "Email limit" },
+      keyGenerator: (req) => authEmailRateLimitKey(req.validated.body.email),
+      skipInTest: false
+    }));
+    app.use(createAuthRateLimiter({
+      windowMs: 60_000,
+      limit: 1,
+      message: { error: "Device limit" },
+      keyGenerator: (req) => authDeviceRateLimitKey(req.authDeviceId),
+      skipInTest: false
+    }));
+    app.post("/signup", (_req, res) => res.json({ ok: true }));
+
+    const first = await request(app).post("/signup").send({ email: "Alice@Example.com" });
+    const deviceCookie = `cashdash_device=${cookieValue(first)}`;
+    const sameEmail = await request(app)
+      .post("/signup")
+      .set("Cookie", deviceCookie)
+      .send({ email: "alice@example.com" });
+    const sameDevice = await request(app)
+      .post("/signup")
+      .set("Cookie", deviceCookie)
+      .send({ email: "bob@example.com" });
+    const sameIp = await request(app).post("/signup").send({ email: "charlie@example.com" });
+
+    expect(first.status).toBe(200);
+    expect(sameEmail.status).toBe(429);
+    expect(sameEmail.body.error).toBe("Email limit");
+    expect(sameDevice.status).toBe(429);
+    expect(sameDevice.body.error).toBe("Device limit");
+    expect(sameIp.status).toBe(429);
+    expect(sameIp.body.error).toBe("IP limit");
   });
 });
