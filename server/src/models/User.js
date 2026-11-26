@@ -1,10 +1,28 @@
 import mongoose from "mongoose";
 
+const providerIdentitySchema = new mongoose.Schema(
+  {
+    provider: { type: String, enum: ["google", "github"], required: true },
+    providerUserId: { type: String, required: true }
+  },
+  { _id: false }
+);
+
 const userSchema = new mongoose.Schema(
   {
     name: { type: String, required: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true },
-    passwordHash: { type: String, required: true, select: false },
+    passwordHash: {
+      type: String,
+      required() {
+        return !this.providerIdentities?.length;
+      },
+      select: false
+    },
+    providerIdentities: {
+      type: [providerIdentitySchema],
+      default: []
+    },
     phone: { type: String, trim: true },
     paymentHandle: { type: String, trim: true },
     currency: { type: String, enum: ["NPR", "INR", "USD"], default: "NPR" },
@@ -23,6 +41,15 @@ const userSchema = new mongoose.Schema(
     expiresAt: { type: Date, index: { expires: 0 } } // TTL index for ephemeral demo users
   },
   { timestamps: true }
+);
+
+userSchema.index(
+  { "providerIdentities.provider": 1, "providerIdentities.providerUserId": 1 },
+  {
+    unique: true,
+    partialFilterExpression: { "providerIdentities.provider": { $exists: true } },
+    name: "unique_provider_identity"
+  }
 );
 
 export default mongoose.models.User || mongoose.model("User", userSchema);

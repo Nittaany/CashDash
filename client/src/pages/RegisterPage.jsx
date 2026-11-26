@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { getConfiguredOAuthProviders } from "../api/client.js";
+import { OAuthButtons } from "../components/OAuthButtons.jsx";
 import { Wallet, Loader2 } from "lucide-react";
 
 export function RegisterPage() {
@@ -46,8 +48,17 @@ export function RegisterPage() {
       if (formData.phone) data.phone = formData.phone;
       if (formData.paymentHandle) data.paymentHandle = formData.paymentHandle;
 
-      await register(data);
-      navigate("/dashboard");
+      const result = await register(data);
+      if (result.requiresEmailVerification) {
+        navigate("/resend-verification", {
+          state: {
+            email: result.user?.email || data.email,
+            registered: true
+          }
+        });
+      } else {
+        navigate("/dashboard");
+      }
     } catch (err) {
       setError(err.message);
     } finally {
@@ -162,6 +173,8 @@ export function RegisterPage() {
             Create account
           </button>
         </form>
+
+        <OAuthButtons providers={getConfiguredOAuthProviders()} />
 
         <p className="text-center text-sm text-slate-500 mt-8">
           Already have an account?{" "}

@@ -3,10 +3,35 @@ const RETRYABLE_ENDPOINTS = new Set(["/api/auth/demo", "/api/health"]);
 const RETRYABLE_STATUSES = new Set([502, 503, 504]);
 const MAX_RETRIES = 3;
 const RETRY_DELAY_MS = 4000;
+const OAUTH_PROVIDERS = new Set(["google", "github"]);
+const OAUTH_AUTHORIZATION_HOSTS = new Set(["accounts.google.com", "github.com"]);
 
 let accessToken = null;
 let isDemo = false;
 let onDemoSessionEnd = null;
+
+export function getConfiguredOAuthProviders() {
+  const configured = import.meta.env.VITE_OAUTH_PROVIDERS || "";
+  return [...new Set(configured.split(",").map((provider) => provider.trim().toLowerCase()))]
+    .filter((provider) => OAUTH_PROVIDERS.has(provider));
+}
+
+export function redirectToOAuthAuthorizationUrl(authorizationUrl) {
+  let url;
+  try {
+    url = new URL(authorizationUrl);
+  } catch {
+    throw new Error("OAuth provider returned an invalid authorization URL");
+  }
+
+  if (
+    url.protocol !== "https:" ||
+    !OAUTH_AUTHORIZATION_HOSTS.has(url.hostname)
+  ) {
+    throw new Error("OAuth provider returned an invalid authorization URL");
+  }
+  window.location.assign(url.toString());
+}
 
 async function fetchWithRetry(endpoint, request) {
   if (!RETRYABLE_ENDPOINTS.has(endpoint)) {

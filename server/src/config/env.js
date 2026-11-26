@@ -58,10 +58,49 @@ const envSchema = z.object({
   COOKIE_SECURE: z.enum(["true", "false"]).default("false").transform((v) => v === "true"),
   COOKIE_SAMESITE: z.enum(["strict", "lax", "none"]).default("lax"),
   // Optional Resend mailer config
-  RESEND_API_KEY: z.string().optional(),
+  RESEND_API_KEY: z.string().min(1).optional(),
   MAIL_FROM: z.string().default("CashDash <onboarding@resend.dev>"),
+  GOOGLE_CLIENT_ID: z.string().min(1).optional(),
+  GOOGLE_CLIENT_SECRET: z.string().min(1).optional(),
+  GITHUB_CLIENT_ID: z.string().min(1).optional(),
+  GITHUB_CLIENT_SECRET: z.string().min(1).optional(),
+  OAUTH_STATE_SECRET: z.string().min(32).optional(),
   // Email verification toggle (default false in dev/test, enable in production)
   REQUIRE_EMAIL_VERIFICATION: z.enum(["true", "false"]).default("false").transform((v) => v === "true")
+}).superRefine((config, context) => {
+  if (
+    config.NODE_ENV === "production" &&
+    config.REQUIRE_EMAIL_VERIFICATION &&
+    !config.RESEND_API_KEY
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["RESEND_API_KEY"],
+      message: "RESEND_API_KEY is required when production email verification is enabled"
+    });
+  }
+
+  for (const [provider, clientId, clientSecret] of [
+    ["Google", config.GOOGLE_CLIENT_ID, config.GOOGLE_CLIENT_SECRET],
+    ["GitHub", config.GITHUB_CLIENT_ID, config.GITHUB_CLIENT_SECRET]
+  ]) {
+    if (Boolean(clientId) !== Boolean(clientSecret)) {
+      context.addIssue({
+        code: "custom",
+        path: [`${provider.toUpperCase()}_CLIENT_SECRET`],
+        message: `${provider} OAuth client ID and secret must be configured together`
+      });
+    }
+  }
+
+  const oauthConfigured = Boolean(config.GOOGLE_CLIENT_ID || config.GITHUB_CLIENT_ID);
+  if (oauthConfigured && !config.OAUTH_STATE_SECRET) {
+    context.addIssue({
+      code: "custom",
+      path: ["OAUTH_STATE_SECRET"],
+      message: "OAUTH_STATE_SECRET is required when an OAuth provider is configured"
+    });
+  }
 });
 
 const parsed = envSchema.parse(process.env);
@@ -72,4 +111,4 @@ const primaryClientUrl = parsed.APP_URL || parsed.CLIENT_URL.split(",")[0].trim(
 export const env = { ...parsed, primaryClientUrl };
 
 // Export for testing
-export { clientUrlSchema };
+export { clientUrlSchema, envSchema };

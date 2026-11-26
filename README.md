@@ -5,7 +5,7 @@
 ![Node 22](https://img.shields.io/badge/node-22-brightgreen)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-> **TL;DR** — A personal wallet and group expense splitter handling NPR, INR, and USD with **integer money math** (no floating-point drift), **ACID transactions** for wallet operations, and **greedy debt simplification** that minimizes transfers. Built with React 19 + Express 5 + MongoDB, deployed on Vercel/Render/Atlas free tiers. Backed by **264 tests (91% coverage)**, 4-job CI pipeline, and **0 secret leaks**.
+> **TL;DR** — A personal wallet and group expense splitter handling NPR, INR, and USD with **integer money math** (no floating-point drift), **ACID transactions** for wallet operations, and **greedy debt simplification** that minimizes transfers. Built with React 19 + Express 5 + MongoDB, deployed on Vercel/Render/Atlas free tiers. Backed by **306 tests**, 4-job CI pipeline, and **0 secret leaks**.
 
 **[Live Demo](https://cash-dash-one.vercel.app)** — Click "Try Instant Demo" for a pre-seeded sandbox with 25 expenses and 10 groups (no signup, 2h auto-cleanup).
 
@@ -65,7 +65,7 @@ flowchart TB
 
     subgraph ROUTES["ROUTES"]
       direction LR
-      R1["/api/auth<br/>register · login · refresh<br/>logout · demo<br/>verify-email · reset-password"]
+      R1["/api/auth<br/>register · login · refresh<br/>demo · verification · password reset<br/>Google/GitHub OAuth"]
       R2["/api/wallet<br/>GET balance<br/>POST topup"]
       R3["/api/expenses<br/>GET list · POST create<br/>DELETE with atomic refund"]
       R4["/api/groups<br/>groups and members<br/>EQUAL / EXACT / PERCENT expenses<br/>settlements · paginated summary<br/>CSV export"]
@@ -83,7 +83,7 @@ flowchart TB
 
   subgraph ATLAS["🍃 MONGODB ATLAS · replica set (enables multi-document ACID transactions)"]
     direction LR
-    U["users<br/>email unique<br/>passwordHash<br/>refreshTokenHash<br/>expiresAt TTL"]
+    U["users<br/>email unique<br/>passwordHash / provider identities<br/>refreshTokenHash<br/>expiresAt TTL"]
     PE["personalexpenses<br/>userId indexed<br/>category<br/>amountMinor<br/>date indexed<br/>expiresAt TTL"]
     G["groups<br/>members[]<br/>currency<br/>settlementVersion<br/>expiresAt TTL"]
     GE["groupexpenses<br/>groupId indexed<br/>splits[]<br/>splitType"]
@@ -130,10 +130,38 @@ flowchart TB
 | **Frontend** | React 19, Vite 6, Tailwind CSS 3, React Router 7, ShaderGradient/Three |
 | **Backend**  | Node 22, Express 5, Mongoose 8, Zod 4                                  |
 | **Database** | MongoDB Atlas M0 (replica set for ACID transactions)                   |
-| **Auth**     | JWT (15min) + SHA-256 hashed refresh cookies (7d, HttpOnly)            |
+| **Auth**     | JWT (15min), HttpOnly refresh cookies (7d), Google/GitHub OAuth       |
 | **Email**    | Resend API (mock transport in dev/test)                                |
 | **DevOps**   | Docker multi-stage, GitHub Actions (4 jobs), Vercel, Render            |
 | **Testing**  | Vitest, Supertest, mongodb-memory-server                               |
+
+---
+
+## Production Auth Configuration
+
+The Render service requires real email delivery when production email verification is enabled. Configure these values in Render's environment settings; never commit their values:
+
+| Variable | Purpose |
+| :--- | :--- |
+| `REQUIRE_EMAIL_VERIFICATION=true` | Require verified email before password login or protected API access. Set in `render.yaml`. |
+| `RESEND_API_KEY` | Resend API credential. Required for production verification and password-recovery email. |
+| `MAIL_FROM` | Sender address verified with Resend. |
+| `CLIENT_URL` | Allowed frontend origin(s), comma-separated and without trailing slashes. |
+| `APP_URL` | Public Vercel origin without a trailing slash; used for email and OAuth callback URLs. |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Optional Google OAuth application credentials; configure both or neither. |
+| `GITHUB_CLIENT_ID` / `GITHUB_CLIENT_SECRET` | Optional GitHub OAuth application credentials; configure both or neither. |
+| `OAUTH_STATE_SECRET` | Random secret of at least 32 characters used to sign short-lived OAuth state cookies. Required when either provider is configured. |
+
+Set `VITE_OAUTH_PROVIDERS` in Vercel to the comma-separated public provider list, such as `google,github`, matching the providers configured on Render. It contains provider names only, never secrets. The login/register pages do not make a backend preflight request, so they remain usable during a cold start.
+
+Register these exact callback URLs in the provider consoles, replacing the origin with the deployed frontend origin:
+
+```text
+https://<your-vercel-domain>/api/auth/oauth/google/callback
+https://<your-vercel-domain>/api/auth/oauth/github/callback
+```
+
+`client/vercel.json` proxies `/api/*` to Render so callbacks and refresh cookies stay on the browser's first-party Vercel origin. OAuth sign-in requires a provider-verified email. Existing password accounts are never linked automatically by matching email; sign in first, then link Google or GitHub from Profile. In development and tests the mailer may use its mock transport; production never falls back to mock email.
 
 ---
 
@@ -185,7 +213,7 @@ flowchart TB
 
 | Group        | Endpoints                                                                                                      |
 | :----------- | :------------------------------------------------------------------------------------------------------------- |
-| **Auth**     | register, login, refresh, logout, demo, me, forgot-password, reset-password, verify-email, resend-verification |
+| **Auth**     | register, login, refresh, logout, demo, me, forgot-password, reset-password, verification, OAuth           |
 | **Wallet**   | GET balance/summary, POST topup                                                                                |
 | **Expenses** | GET list (filtered), POST create (atomic debit), DELETE (atomic refund)                                        |
 | **Groups**   | CRUD groups, members, expenses, settlements, paginated summary, CSV exports                                    |
@@ -206,6 +234,10 @@ flowchart TB
 | `/api/auth/reset-password`      | POST   | Reset with 15min SHA-256 token      |
 | `/api/auth/verify-email`        | POST   | Verify with 24h SHA-256 token       |
 | `/api/auth/resend-verification` | POST   | Resend (anti-enumeration)           |
+| `/api/auth/providers`           | GET    | List configured OAuth providers     |
+| `/api/auth/oauth/:provider`     | GET    | Start Google/GitHub sign-in          |
+| `/api/auth/oauth/:provider/link`| POST   | Start authenticated provider linking |
+| `/api/auth/oauth/:provider/callback` | GET | OAuth provider callback              |
 | `/api/wallet`                   | GET    | Balance + monthly summary           |
 | `/api/wallet/topup`             | POST   | Add funds                           |
 | `/api/expenses`                 | GET    | List with filters                   |
@@ -233,10 +265,10 @@ flowchart TB
 ┌─────────────────────────────────────────────────────────────────┐
 │                     TEST SUMMARY                                │
 ├─────────────────────────────────────────────────────────────────┤
-│  Server: 180 tests │ 91.15% statements │ 91.52% lines          │
-│  Client:  84 tests │                                            │
-│  Total:  264 tests │ 0 secret leaks (gitleaks)                  │
-│  App bundle: 110.08 kB JS │ 7.29 kB CSS (gzip)                  │
+│  Server: 202 tests │                                            │
+│  Client: 104 tests │                                            │
+│  Total:  306 tests │ 0 secret leaks (gitleaks)                  │
+│  App bundle: 111.86 kB JS │ 7.31 kB CSS (gzip)                  │
 │  Lazy shader: 294.42 kB JS (gzip)                              │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -249,6 +281,7 @@ flowchart TB
 | `auth.test.js`                     | Token rotation, refresh reuse rejection, timing-safe comparison |
 | `groupsAndSettlements.test.js`     | Membership checks, settlement validation, optimistic locking    |
 | `emailVerification.test.js`        | Token verify, single-use rejection, expiry, anti-enumeration    |
+| `oauth.test.js`                    | OAuth state/PKCE, verified emails, account collisions, linking  |
 | `memberRemoval.test.js`            | Safe removal (0 balance required), authorization                |
 | `ttl.test.js`                      | Demo expiry, real users never get `expiresAt`                   |
 | `PaymentQRModal.test.jsx`          | Integer formatting, VPA validation, INR-only QR                 |
@@ -283,9 +316,9 @@ cd client && npm install && npm run dev
 **Run tests:**
 
 ```bash
-cd server && npm test                    # 180 tests
-cd server && npm run test:coverage       # 91.15% statements
-cd client && npm test                    # 84 tests
+cd server && npm test                    # 202 tests
+cd server && npm run test:coverage
+cd client && npm test                    # 104 tests
 gitleaks detect --source . --verbose     # 0 leaks
 ```
 
@@ -348,12 +381,10 @@ stack:
   database: MongoDB Atlas M0 (replica set)
   auth: JWT + SHA-256 hashed refresh cookie (HttpOnly)
 tests:
-  server: 180
-  client: 84
-  total: 264
-  coverage_statements: 91.15%
-  coverage_lines: 91.52%
-bundle_gzip: { app_js: 110.08kb, css: 7.29kb, lazy_shader_js: 294.42kb }
+ server: 202
+ client: 104
+ total: 306
+bundle_gzip: { app_js: 111.86kb, css: 7.31kb, lazy_shader_js: 294.42kb }
 endpoints: 28
 demo_data: { expenses: 25, groups: 10 }
 ```

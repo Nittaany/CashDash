@@ -11,6 +11,8 @@ import { RegisterPage } from "./pages/RegisterPage.jsx";
 import { ForgotPasswordPage } from "./pages/ForgotPasswordPage.jsx";
 import { ResetPasswordPage } from "./pages/ResetPasswordPage.jsx";
 import { VerifyEmailPage } from "./pages/VerifyEmailPage.jsx";
+import { ResendVerificationPage } from "./pages/ResendVerificationPage.jsx";
+import { OAuthCallbackPage } from "./pages/OAuthCallbackPage.jsx";
 import { DashboardPage } from "./pages/DashboardPage.jsx";
 import { ExpensesPage } from "./pages/ExpensesPage.jsx";
 import { GroupsPage } from "./pages/GroupsPage.jsx";
@@ -20,7 +22,7 @@ import { useAuth } from "./context/AuthContext.jsx";
 import { AmbientShaderBackground } from "./components/AmbientShaderBackground.jsx";
 
 function AppRoutes() {
-  const { user, loading, serverWaking, demoSessionEnded, clearDemoSessionEnded } = useAuth();
+  const { user, serverWaking, demoSessionEnded, clearDemoSessionEnded } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -31,18 +33,6 @@ function AppRoutes() {
       navigate("/login", { state: { message: "Demo session ended" } });
     }
   }, [demoSessionEnded, location.pathname, navigate, clearDemoSessionEnded]);
-
-  // Show loading state only when not waking (wake indicator handles that)
-  if (loading && !serverWaking) {
-    return (
-      <div className="min-h-[80vh] flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-6 h-6 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-          <div className="text-slate-500 text-sm">Loading…</div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <>
@@ -55,6 +45,8 @@ function AppRoutes() {
         <Route path="/forgot-password" element={user ? <Navigate to="/dashboard" replace /> : <ForgotPasswordPage />} />
         <Route path="/reset-password" element={user ? <Navigate to="/dashboard" replace /> : <ResetPasswordPage />} />
         <Route path="/verify-email" element={<VerifyEmailPage />} />
+        <Route path="/resend-verification" element={<ResendVerificationPage />} />
+        <Route path="/oauth/callback" element={<OAuthCallbackPage />} />
         <Route
           path="/dashboard"
           element={

@@ -1,13 +1,20 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import request from "supertest";
 import "./setup.js";
 import { app } from "../../src/app.js";
 import User from "../../src/models/User.js";
 import { mockTransport } from "../../src/services/mailer.js";
+import { env } from "../../src/config/env.js";
 
 describe("Email Verification Flow", () => {
   beforeEach(() => {
     mockTransport.clear();
+    env.REQUIRE_EMAIL_VERIFICATION = false;
+  });
+
+  afterEach(() => {
+    env.REQUIRE_EMAIL_VERIFICATION = false;
+    vi.unstubAllEnvs();
   });
 
   describe("POST /api/auth/register", () => {
@@ -192,6 +199,56 @@ describe("Email Verification Flow", () => {
   });
 
   describe("POST /api/auth/login with REQUIRE_EMAIL_VERIFICATION", () => {
+    it("does not issue a session before required email verification", async () => {
+      env.REQUIRE_EMAIL_VERIFICATION = true;
+
+      const registration = await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Pending User",
+          email: "pending@example.com",
+          password: "Password123"
+        });
+
+      expect(registration.status).toBe(201);
+      expect(registration.body.requiresEmailVerification).toBe(true);
+      expect(registration.body.accessToken).toBeUndefined();
+      expect(registration.headers["set-cookie"]).toBeUndefined();
+      expect(mockTransport.sentEmails).toHaveLength(1);
+
+      const login = await request(app)
+        .post("/api/auth/login")
+        .send({ email: "pending@example.com", password: "Password123" });
+
+      expect(login.status).toBe(403);
+      expect(login.body.error).toBe("Please verify your email before logging in");
+    });
+
+    it("rejects existing refresh cookies and access tokens for unverified accounts", async () => {
+      const registration = await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Legacy Pending User",
+          email: "legacy-pending@example.com",
+          password: "Password123"
+        });
+      const refreshCookie = registration.headers["set-cookie"]
+        .find((cookie) => cookie.startsWith("refreshToken="))
+        .split(";")[0];
+
+      env.REQUIRE_EMAIL_VERIFICATION = true;
+
+      const refresh = await request(app)
+        .post("/api/auth/refresh")
+        .set("Cookie", refreshCookie);
+      const profile = await request(app)
+        .get("/api/auth/me")
+        .set("Authorization", `Bearer ${registration.body.accessToken}`);
+
+      expect(refresh.status).toBe(403);
+      expect(profile.status).toBe(403);
+    });
+
     it("allows login for verified users", async () => {
       // Register and verify a user
       await request(app)

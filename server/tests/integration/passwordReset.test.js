@@ -5,6 +5,7 @@ import "./setup.js";
 import { app } from "../../src/app.js";
 import User from "../../src/models/User.js";
 import { mockTransport } from "../../src/services/mailer.js";
+import * as mailer from "../../src/services/mailer.js";
 
 describe("Password Reset Flow", () => {
   beforeEach(() => {
@@ -53,6 +54,36 @@ describe("Password Reset Flow", () => {
       
       // No email sent
       expect(mockTransport.sentEmails.length).toBe(0);
+    });
+
+    it("keeps delivery failures account-neutral and does not claim an email was sent", async () => {
+      await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Delivery Failure User",
+          email: "delivery-failure@example.com",
+          password: "Password123"
+        });
+
+      const sendFailure = vi.spyOn(mailer, "sendPasswordResetEmail")
+        .mockRejectedValue(new Error("Email send failed"));
+      const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const existing = await request(app)
+        .post("/api/auth/forgot-password")
+        .send({ email: "delivery-failure@example.com" });
+      const unknown = await request(app)
+        .post("/api/auth/forgot-password")
+        .send({ email: "unknown-delivery-failure@example.com" });
+
+      expect(existing.status).toBe(200);
+      expect(existing.body).toEqual(unknown.body);
+      expect(existing.body.message).not.toMatch(/has been sent/i);
+      expect(sendFailure).toHaveBeenCalledOnce();
+      expect(errorLog).toHaveBeenCalledWith("[AUTH] Password reset email could not be sent");
+
+      sendFailure.mockRestore();
+      errorLog.mockRestore();
     });
 
     it("throttles password reset requests to three per user per hour", async () => {

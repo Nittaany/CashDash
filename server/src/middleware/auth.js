@@ -32,7 +32,11 @@ export async function authenticate(req, _res, next) {
     });
 
     // Fetch user to get current isDemo and expiresAt
-    const user = await User.findById(payload.userId).select("isDemo expiresAt");
+    const user = await User.findById(payload.userId).select("isDemo expiresAt isEmailVerified");
+
+    if (env.REQUIRE_EMAIL_VERIFICATION && user && !user.isDemo && !user.isEmailVerified) {
+      throw new AppError(403, "Please verify your email before accessing this account");
+    }
     
     req.user = {
       userId: payload.userId,

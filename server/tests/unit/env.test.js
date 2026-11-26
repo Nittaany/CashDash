@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest";
-import { clientUrlSchema } from "../../src/config/env.js";
+import * as envConfig from "../../src/config/env.js";
+
+const { clientUrlSchema } = envConfig;
 
 describe("CLIENT_URL validation", () => {
   it("accepts a single valid origin", () => {
@@ -35,5 +37,58 @@ describe("CLIENT_URL validation", () => {
 
   it("rejects empty string", () => {
     expect(() => clientUrlSchema.parse("")).toThrow();
+  });
+
+  it("rejects production verification without a real mail provider key", () => {
+    const result = envConfig.envSchema?.safeParse({
+      MONGODB_URI: "mongodb://localhost:27017/cashdash",
+      JWT_ACCESS_SECRET: "a".repeat(32),
+      JWT_REFRESH_SECRET: "b".repeat(32),
+      CLIENT_URL: "https://cashdash.example.com",
+      NODE_ENV: "production",
+      REQUIRE_EMAIL_VERIFICATION: "true"
+    });
+
+    expect(result?.success).toBe(false);
+  });
+
+  it("accepts production verification when real mail delivery is configured", () => {
+    const result = envConfig.envSchema?.safeParse({
+      MONGODB_URI: "mongodb://localhost:27017/cashdash",
+      JWT_ACCESS_SECRET: "a".repeat(32),
+      JWT_REFRESH_SECRET: "b".repeat(32),
+      CLIENT_URL: "https://cashdash.example.com",
+      NODE_ENV: "production",
+      REQUIRE_EMAIL_VERIFICATION: "true",
+      RESEND_API_KEY: "re_test_key"
+    });
+
+    expect(result?.success).toBe(true);
+  });
+
+  it("rejects partial OAuth provider credentials", () => {
+    const result = envConfig.envSchema?.safeParse({
+      MONGODB_URI: "mongodb://localhost:27017/cashdash",
+      JWT_ACCESS_SECRET: "a".repeat(32),
+      JWT_REFRESH_SECRET: "b".repeat(32),
+      CLIENT_URL: "https://cashdash.example.com",
+      GOOGLE_CLIENT_ID: "google-client-id"
+    });
+
+    expect(result?.success).toBe(false);
+  });
+
+  it("accepts complete OAuth credentials with a state signing secret", () => {
+    const result = envConfig.envSchema?.safeParse({
+      MONGODB_URI: "mongodb://localhost:27017/cashdash",
+      JWT_ACCESS_SECRET: "a".repeat(32),
+      JWT_REFRESH_SECRET: "b".repeat(32),
+      CLIENT_URL: "https://cashdash.example.com",
+      GOOGLE_CLIENT_ID: "google-client-id",
+      GOOGLE_CLIENT_SECRET: "google-client-secret",
+      OAUTH_STATE_SECRET: "c".repeat(32)
+    });
+
+    expect(result?.success).toBe(true);
   });
 });

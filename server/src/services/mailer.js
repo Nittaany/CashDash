@@ -41,8 +41,16 @@ async function sendEmail(to, subject, html) {
   const resendKey = env.RESEND_API_KEY;
   const mailFrom = env.MAIL_FROM;
 
-  // Use mock transport in test env or when RESEND_API_KEY is not set
-  if (env.NODE_ENV === "test" || !resendKey) {
+  if (env.NODE_ENV === "test") {
+    await mockTransport.send(to, subject, html);
+    return { mock: true };
+  }
+
+  if (!resendKey) {
+    if (env.NODE_ENV === "production") {
+      throw new Error("Email delivery is not configured");
+    }
+
     await mockTransport.send(to, subject, html);
     return { mock: true };
   }

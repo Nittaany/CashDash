@@ -1,10 +1,22 @@
 import { useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
-import { api } from "../api/client.js";
+import {
+  api,
+  getConfiguredOAuthProviders,
+  redirectToOAuthAuthorizationUrl
+} from "../api/client.js";
 import { Loader2, User, AlertCircle } from "lucide-react";
+import { getOAuthErrorMessage } from "../utils/oauthMessages.js";
+
+const PROVIDER_LABELS = {
+  google: "Google",
+  github: "GitHub"
+};
 
 export function ProfilePage() {
   const { user, refreshUser } = useAuth();
+  const [searchParams] = useSearchParams();
   const [formData, setFormData] = useState({
     name: user?.name || "",
     phone: user?.phone || "",
@@ -12,8 +24,17 @@ export function ProfilePage() {
     currency: user?.currency || "NPR"
   });
   const [loading, setLoading] = useState(false);
+  const [linkingProvider, setLinkingProvider] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const configuredProviders = getConfiguredOAuthProviders();
+  const linkedProviders = new Set(user?.authProviders || []);
+  const oauthError = searchParams.get("oauthError");
+  const linkedProvider = searchParams.get("oauthLinked");
+  const displayedError = error || (oauthError ? getOAuthErrorMessage(oauthError) : "");
+  const linkedMessage = PROVIDER_LABELS[linkedProvider]
+    ? `${PROVIDER_LABELS[linkedProvider]} account linked successfully.`
+    : "";
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -32,6 +53,21 @@ export function ProfilePage() {
     }
   };
 
+  const handleLinkProvider = async (provider) => {
+    setError("");
+    setSuccess("");
+    setLinkingProvider(provider);
+
+    try {
+      const { authorizationUrl } = await api.post(`/api/auth/oauth/${provider}/link`, {});
+      redirectToOAuthAuthorizationUrl(authorizationUrl);
+    } catch (requestError) {
+      setError(requestError.message || "Unable to start provider linking");
+    } finally {
+      setLinkingProvider("");
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-fade-up">
       <h1>Profile</h1>
@@ -46,15 +82,15 @@ export function ProfilePage() {
         </div>
       )}
 
-      {error && (
+      {displayedError && (
         <div className="alert alert-error">
-          <span>{error}</span>
+          <span>{displayedError}</span>
         </div>
       )}
 
-      {success && (
+      {(success || linkedMessage) && (
         <div className="alert alert-success">
-          <span>{success}</span>
+          <span>{success || linkedMessage}</span>
         </div>
       )}
 
@@ -134,6 +170,44 @@ export function ProfilePage() {
           </button>
         </form>
       </div>
+
+      {configuredProviders.length > 0 && (
+        <div className="card border-white/[0.10]">
+          <h2 className="text-lg font-semibold text-slate-100 mb-2">Connected accounts</h2>
+          <p className="text-sm text-slate-400 mb-4">
+            Link a provider only while signed in. Matching email addresses never link accounts automatically.
+          </p>
+          <div className="space-y-3">
+            {configuredProviders.map((provider) => {
+              const isLinked = linkedProviders.has(provider);
+              const isLinking = linkingProvider === provider;
+              return (
+                <div key={provider} className="flex items-center justify-between gap-4">
+                  <span className="text-slate-200">{PROVIDER_LABELS[provider]}</span>
+                  {isLinked ? (
+                    <span className="text-sm text-emerald-400">{PROVIDER_LABELS[provider]} linked</span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => handleLinkProvider(provider)}
+                      disabled={Boolean(linkingProvider) || user?.isDemo}
+                      className="btn-secondary text-sm disabled:opacity-50"
+                    >
+                      {isLinking && <Loader2 className="mr-2 inline h-4 w-4 animate-spin" />}
+                      {isLinking ? "Linking..." : `Link ${PROVIDER_LABELS[provider]}`}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {user?.isDemo && (
+            <p className="mt-4 text-sm text-slate-400">
+              Sign up for a CashDash account before linking a provider.
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

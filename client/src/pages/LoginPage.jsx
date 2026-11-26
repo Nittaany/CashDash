@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
+import { getConfiguredOAuthProviders } from "../api/client.js";
+import { OAuthButtons } from "../components/OAuthButtons.jsx";
+import { getOAuthErrorMessage } from "../utils/oauthMessages.js";
 import { Wallet, Loader2, Zap, ArrowRight } from "lucide-react";
 
 export function LoginPage() {
@@ -11,6 +14,7 @@ export function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const [verificationRequired, setVerificationRequired] = useState(false);
   const [loading, setLoading] = useState(false);
   const [demoLoading, setDemoLoading] = useState(false);
 
@@ -19,18 +23,25 @@ export function LoginPage() {
       setInfo(location.state.message);
       window.history.replaceState({}, document.title);
     }
-  }, [location.state]);
+    const oauthError = new URLSearchParams(location.search).get("oauthError");
+    if (oauthError) {
+      setError(getOAuthErrorMessage(oauthError));
+      setVerificationRequired(false);
+    }
+  }, [location.state, location.search]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
     setInfo("");
+    setVerificationRequired(false);
     setLoading(true);
     try {
       await login(email, password);
       navigate("/dashboard");
     } catch (err) {
       setError(err.message);
+      setVerificationRequired(/verify your email/i.test(err.message));
     } finally {
       setLoading(false);
     }
@@ -81,6 +92,15 @@ export function LoginPage() {
         {error && (
           <div className="alert alert-error mb-4">
             <span>{error}</span>
+            {verificationRequired && (
+              <Link
+                to="/resend-verification"
+                state={{ email }}
+                className="mt-2 block text-sm text-emerald-300 hover:text-emerald-200"
+              >
+                Resend verification email
+              </Link>
+            )}
           </div>
         )}
 
@@ -128,6 +148,8 @@ export function LoginPage() {
               Sign in
             </button>
           </form>
+
+          <OAuthButtons providers={getConfiguredOAuthProviders()} />
 
           {/* Divider */}
           <div className="relative mb-6">

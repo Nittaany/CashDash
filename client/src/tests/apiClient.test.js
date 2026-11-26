@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { api, checkApiHealth, setAccessToken, clearAccessToken } from "../api/client.js";
+import {
+  api,
+  checkApiHealth,
+  clearAccessToken,
+  getConfiguredOAuthProviders,
+  setAccessToken
+} from "../api/client.js";
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -13,7 +19,14 @@ describe("API client", () => {
 
   afterEach(() => {
     vi.useRealTimers();
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
+  });
+
+  it("accepts only supported public OAuth provider names", () => {
+    vi.stubEnv("VITE_OAUTH_PROVIDERS", "Google, github, unsupported, google");
+
+    expect(getConfiguredOAuthProviders()).toEqual(["google", "github"]);
   });
 
   it("retries demo login up to three times for transient proxy statuses", async () => {
