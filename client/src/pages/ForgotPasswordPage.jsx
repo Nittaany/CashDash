@@ -30,10 +30,10 @@ export function ForgotPasswordPage() {
           <div className="text-emerald-400 text-5xl mb-4">✓</div>
           <h1 className="text-2xl font-bold text-white mb-4">Check Your Email</h1>
           <p className="text-slate-300 mb-6">
-            If an account exists for <span className="text-white">{email}</span>, we&apos;ll send a reset link when email delivery is available.
+            If an eligible password account exists for this address, we&apos;ll send a reset link when email delivery is available.
           </p>
           <p className="text-slate-400 text-sm mb-6">
-            The link expires in 15 minutes. Check your spam folder if you don't see it.
+            Reset links expire in 15 minutes. If nothing arrives, the address may not be on file or email delivery may be temporarily unavailable.
           </p>
           <Link
             to="/login"
@@ -51,11 +51,11 @@ export function ForgotPasswordPage() {
       <div className="bg-slate-800 rounded-lg p-8">
         <h1 className="text-2xl font-bold text-white mb-2">Forgot Password</h1>
         <p className="text-slate-400 mb-6">
-          Enter your email address and we'll send you a link to reset your password.
+          If this address belongs to an eligible password account, we&apos;ll send a reset link when email delivery is available.
         </p>
 
         {error && (
-          <div className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg mb-4">
+          <div role="alert" className="bg-red-500/10 border border-red-500 text-red-400 px-4 py-3 rounded-lg mb-4">
             {error}
           </div>
         )}

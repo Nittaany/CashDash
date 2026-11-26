@@ -38,6 +38,7 @@ describe("RegisterPage validation", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockOAuthProviders.length = 0;
+    window.history.replaceState({}, "", "/register");
   });
 
   it("renders all required fields", () => {
@@ -141,11 +142,45 @@ describe("RegisterPage validation", () => {
     });
   });
 
-  it("routes unverified registration to the resend-verification flow", async () => {
-    mockRegister.mockResolvedValue({
-      requiresEmailVerification: true,
-      user: { email: "test@example.com", isEmailVerified: false }
+  it("shows account-neutral verification guidance without creating a client session", async () => {
+    mockRegister.mockResolvedValue({ requiresEmailVerification: true });
+    renderRegisterPage();
+
+    fireEvent.change(screen.getByPlaceholderText(/your name/i), {
+      target: { value: "Test User" }
     });
+    fireEvent.change(screen.getByPlaceholderText(/you@example.com/i), {
+      target: { value: "test@example.com" }
+    });
+    fireEvent.change(screen.getByPlaceholderText(/min 8 chars/i), {
+      target: { value: "ValidPass123" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: /create account/i }));
+
+    expect(await screen.findByRole("heading", { name: /check your email/i })).toBeInTheDocument();
+    expect(screen.getByText(/if this address can be used, we.ll send a verification link/i)).toBeInTheDocument();
+    expect(screen.getByText(/no account is created until you verify your email/i)).toBeInTheDocument();
+    expect(screen.queryByText(/your account is registered/i)).not.toBeInTheDocument();
+
+    const resendLink = screen.getByRole("link", { name: /request another verification link/i });
+    expect(resendLink).toHaveAttribute("href", "/resend-verification");
+    fireEvent.click(resendLink);
+
+    expect(window.location.pathname).toBe("/resend-verification");
+    expect(window.history.state.usr).toEqual({ email: "test@example.com" });
+    expect(mockNavigate).not.toHaveBeenCalled();
+  });
+
+  it("discloses the signup security cookie and absence of passive fingerprinting", () => {
+    renderRegisterPage();
+
+    expect(screen.getByText(/first-party security cookie to limit repeated sign-up and verification requests/i))
+      .toBeInTheDocument();
+    expect(screen.getByText(/do not use passive browser fingerprinting/i)).toBeInTheDocument();
+  });
+
+  it("preserves dashboard navigation when email verification is disabled", async () => {
+    mockRegister.mockResolvedValue({ name: "Test User" });
     renderRegisterPage();
 
     fireEvent.change(screen.getByPlaceholderText(/your name/i), {
@@ -160,9 +195,7 @@ describe("RegisterPage validation", () => {
     fireEvent.click(screen.getByRole("button", { name: /create account/i }));
 
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith("/resend-verification", {
-        state: { email: "test@example.com", registered: true }
-      });
+      expect(mockNavigate).toHaveBeenCalledWith("/dashboard");
     });
   });
 
