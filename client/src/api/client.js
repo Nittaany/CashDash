@@ -1,8 +1,33 @@
 const API_URL = import.meta.env.VITE_API_URL || "";
+const RETRYABLE_ENDPOINTS = new Set(["/api/auth/demo", "/api/health"]);
+const RETRYABLE_STATUSES = new Set([502, 503, 504]);
+const MAX_RETRIES = 3;
+const RETRY_DELAY_MS = 4000;
 
 let accessToken = null;
 let isDemo = false;
 let onDemoSessionEnd = null;
+
+async function fetchWithRetry(endpoint, request) {
+  if (!RETRYABLE_ENDPOINTS.has(endpoint)) {
+    return request();
+  }
+
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      const response = await request();
+      if (!RETRYABLE_STATUSES.has(response.status) || attempt >= MAX_RETRIES) {
+        return response;
+      }
+    } catch (error) {
+      if (attempt >= MAX_RETRIES) {
+        throw error;
+      }
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, RETRY_DELAY_MS));
+  }
+}
 
 /**
  * Set the access token (stored in memory only)
@@ -49,11 +74,11 @@ async function fetchWithAuth(endpoint, options = {}, skipAuthRetry = false) {
     headers.Authorization = `Bearer ${accessToken}`;
   }
 
-  const response = await fetch(url, {
+  const response = await fetchWithRetry(endpoint, () => fetch(url, {
     ...options,
     headers,
     credentials: "include" // For HttpOnly refresh cookies
-  });
+  }));
 
   // Handle 401 - try silent refresh once
   if (response.status === 401 && !skipAuthRetry) {
@@ -170,7 +195,7 @@ export const api = {
  */
 export async function checkApiHealth() {
   try {
-    const res = await fetch(`${API_URL}/api/health`);
+    const res = await fetchWithRetry("/api/health", () => fetch(`${API_URL}/api/health`));
     return res.ok;
   } catch {
     return false;

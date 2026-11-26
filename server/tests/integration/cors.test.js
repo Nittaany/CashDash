@@ -50,12 +50,13 @@ describe("CORS allowlist", () => {
     expect(res.headers["access-control-allow-credentials"]).toBe("true");
   });
 
-  it("does not return Access-Control-Allow-Origin for unlisted origin", async () => {
+  it("returns 403 and no CORS headers for an unlisted origin", async () => {
     const res = await request(app)
       .get("/api/health")
       .set("Origin", "https://evil.com");
 
-    // CORS middleware throws error, which results in no CORS headers
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({ error: "Origin not allowed by CORS" });
     expect(res.headers["access-control-allow-origin"]).toBeUndefined();
   });
 
