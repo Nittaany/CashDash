@@ -6,6 +6,9 @@ const pendingRegistrationSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     passwordHash: { type: String, required: true, select: false },
     emailVerifyTokenHash: { type: String, required: true, select: false },
+    phone: { type: String, trim: true },
+    paymentHandle: { type: String, trim: true },
+    currency: { type: String, enum: ["NPR", "INR", "USD"], default: "NPR" },
     expiresAt: { type: Date, required: true, index: { expires: 0 } }
   },
   { timestamps: true }

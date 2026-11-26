@@ -5,12 +5,20 @@ import crypto from "crypto";
 import { z } from "zod";
 import { env } from "../config/env.js";
 import User from "../models/User.js";
+import PendingRegistration from "../models/PendingRegistration.js";
 import { AppError } from "../middleware/errorHandler.js";
 import { validate } from "../middleware/validate.js";
 import { authenticate, blockDemoUser } from "../middleware/auth.js";
-import { authRateLimiter, demoRateLimiter } from "../middleware/rateLimit.js";
+import {
+  authDeviceRateLimiter,
+  authEmailRateLimiter,
+  authRateLimiter,
+  demoRateLimiter,
+  ensureAuthDeviceId
+} from "../middleware/rateLimit.js";
 import { createEphemeralDemoUser } from "../services/demoSeed.js";
 import { sendPasswordResetEmail, sendVerificationEmail } from "../services/mailer.js";
+import { isDisposableEmailAddress } from "../services/disposableEmail.js";
 import {
   createOAuthAuthorizationUrl,
   exchangeOAuthCode,
@@ -26,7 +34,7 @@ const router = Router();
 // Zod schemas with strict mode and limits (Zod 4 style: z.email())
 const registerSchema = z.strictObject({
   name: z.string().min(2).max(100),
-  email: z.email().max(255).toLowerCase(),
+  email: z.email().max(255).trim().toLowerCase(),
   password: z.string().min(8).max(72).regex(/[a-zA-Z]/, "must contain a letter").regex(/[0-9]/, "must contain a number"),
   phone: z.string().max(20).optional(),
   paymentHandle: z.string().max(100).optional(),
@@ -34,7 +42,7 @@ const registerSchema = z.strictObject({
 });
 
 const loginSchema = z.strictObject({
-  email: z.email().max(255).toLowerCase(),
+  email: z.email().max(255).trim().toLowerCase(),
   password: z.string().min(1).max(72)
 });
 
@@ -46,7 +54,7 @@ const updateProfileSchema = z.strictObject({
 });
 
 const forgotPasswordSchema = z.strictObject({
-  email: z.email().max(255).toLowerCase()
+  email: z.email().max(255).trim().toLowerCase()
 });
 
 const resetPasswordSchema = z.strictObject({
@@ -59,7 +67,7 @@ const verifyEmailSchema = z.strictObject({
 });
 
 const resendVerificationSchema = z.strictObject({
-  email: z.email().max(255).toLowerCase()
+  email: z.email().max(255).trim().toLowerCase()
 });
 
 // Token helpers
@@ -67,6 +75,11 @@ const ACCESS_TTL = "15m";
 const REFRESH_TTL = "7d";
 const EMAIL_REQUEST_LIMIT = 3;
 const EMAIL_REQUEST_WINDOW_MS = 60 * 60 * 1000;
+const PENDING_REGISTRATION_TTL_MS = 24 * 60 * 60 * 1000;
+const REGISTRATION_RESPONSE = {
+  requiresEmailVerification: true,
+  message: "If this email is eligible, verification instructions will be sent when available."
+};
 const OAUTH_FLOW_COOKIE = "oauth_flow";
 const OAUTH_FLOW_TTL_MS = 10 * 60 * 1000;
 
@@ -132,6 +145,14 @@ function compareHashes(a, b) {
   const bufA = Buffer.from(a, "hex");
   const bufB = Buffer.from(b, "hex");
   return crypto.timingSafeEqual(bufA, bufB);
+}
+
+async function sendVerificationEmailWithoutLeakingRecipient(email, token) {
+  try {
+    await sendVerificationEmail(email, token);
+  } catch {
+    console.error("[AUTH] Verification email could not be sent");
+  }
 }
 
 function setRefreshCookie(res, token) {
@@ -257,57 +278,102 @@ function safeUserResponse(user) {
 }
 
 // POST /api/auth/register
-router.post("/register", authRateLimiter, validate({ body: registerSchema }), async (req, res, next) => {
-  try {
-    const { name, email, password, phone, paymentHandle, currency } = req.validated.body;
+router.post(
+  "/register",
+  authRateLimiter,
+  ensureAuthDeviceId,
+  authDeviceRateLimiter,
+  validate({ body: registerSchema }),
+  authEmailRateLimiter,
+  async (req, res, next) => {
+    try {
+      const { name, email, password, phone, paymentHandle, currency } = req.validated.body;
 
-    const passwordHash = await bcrypt.hash(password, 10);
-    
-    // Generate email verification token
-    const verifyToken = crypto.randomBytes(32).toString("hex");
-    const emailVerifyTokenHash = crypto.createHash("sha256").update(verifyToken).digest("hex");
-    const emailVerifyExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+      if (isDisposableEmailAddress(email)) {
+        if (env.REQUIRE_EMAIL_VERIFICATION) {
+          return res.status(202).json(REGISTRATION_RESPONSE);
+        }
+        throw new AppError(400, "Disposable email addresses are not allowed");
+      }
 
-    const user = await User.create({
-      name,
-      email,
-      passwordHash,
-      phone,
-      paymentHandle,
-      currency,
-      isEmailVerified: false,
-      emailVerifyTokenHash,
-      emailVerifyExpiresAt
-    });
+      if (env.REQUIRE_EMAIL_VERIFICATION) {
+        const now = new Date();
+        await PendingRegistration.deleteOne({ email, expiresAt: { $lte: now } });
 
-    // Send verification email
-    await sendVerificationEmail(email, verifyToken);
+        if (await User.exists({ email })) {
+          return res.status(202).json(REGISTRATION_RESPONSE);
+        }
+        if (await PendingRegistration.exists({ email, expiresAt: { $gt: now } })) {
+          return res.status(202).json(REGISTRATION_RESPONSE);
+        }
 
-    if (env.REQUIRE_EMAIL_VERIFICATION) {
-      return res.status(201).json({
-        requiresEmailVerification: true,
+        const passwordHash = await bcrypt.hash(password, 10);
+        const verifyToken = crypto.randomBytes(32).toString("hex");
+        const emailVerifyTokenHash = hashToken(verifyToken);
+        const expiresAt = new Date(now.getTime() + PENDING_REGISTRATION_TTL_MS);
+
+        try {
+          await PendingRegistration.create({
+            name,
+            email,
+            passwordHash,
+            emailVerifyTokenHash,
+            phone,
+            paymentHandle,
+            currency,
+            expiresAt
+          });
+        } catch (error) {
+          if (error?.code === 11000) {
+            return res.status(202).json(REGISTRATION_RESPONSE);
+          }
+          throw error;
+        }
+
+        await sendVerificationEmailWithoutLeakingRecipient(email, verifyToken);
+        return res.status(202).json(REGISTRATION_RESPONSE);
+      }
+
+      const passwordHash = await bcrypt.hash(password, 10);
+
+      // Generate email verification token
+      const verifyToken = crypto.randomBytes(32).toString("hex");
+      const emailVerifyTokenHash = crypto.createHash("sha256").update(verifyToken).digest("hex");
+      const emailVerifyExpiresAt = new Date(Date.now() + PENDING_REGISTRATION_TTL_MS);
+
+      const user = await User.create({
+        name,
+        email,
+        passwordHash,
+        phone,
+        paymentHandle,
+        currency,
+        isEmailVerified: false,
+        emailVerifyTokenHash,
+        emailVerifyExpiresAt
+      });
+
+      // Send verification email
+      await sendVerificationEmail(email, verifyToken);
+
+      const accessToken = generateAccessToken(user);
+      const refreshToken = generateRefreshToken(user);
+
+      // Store hashed refresh token
+      user.refreshTokenHash = hashToken(refreshToken);
+      await user.save();
+
+      setRefreshCookie(res, refreshToken);
+      res.status(201).json({
+        accessToken,
         user: safeUserResponse(user),
         message: "Registration successful. Please check your email to verify your account."
       });
+    } catch (error) {
+      next(error);
     }
-
-    const accessToken = generateAccessToken(user);
-    const refreshToken = generateRefreshToken(user);
-
-    // Store hashed refresh token
-    user.refreshTokenHash = hashToken(refreshToken);
-    await user.save();
-
-    setRefreshCookie(res, refreshToken);
-    res.status(201).json({ 
-      accessToken, 
-      user: safeUserResponse(user),
-      message: "Registration successful. Please check your email to verify your account."
-    });
-  } catch (error) {
-    next(error);
   }
-});
+);
 
 // POST /api/auth/login
 router.post("/login", authRateLimiter, validate({ body: loginSchema }), async (req, res, next) => {
@@ -547,24 +613,45 @@ router.post("/reset-password", authRateLimiter, validate({ body: resetPasswordSc
 router.post("/verify-email", authRateLimiter, validate({ body: verifyEmailSchema }), async (req, res, next) => {
   try {
     const { token } = req.validated.body;
+    const tokenHash = hashToken(token);
+    const now = new Date();
+    const pending = await PendingRegistration.findOne({
+      emailVerifyTokenHash: tokenHash,
+      expiresAt: { $gt: now }
+    }).select("+passwordHash +emailVerifyTokenHash");
 
-    // Hash the incoming token
-    const tokenHash = crypto.createHash("sha256").update(token).digest("hex");
+    if (pending && compareHashes(pending.emailVerifyTokenHash, tokenHash)) {
+      try {
+        await User.create({
+          name: pending.name,
+          email: pending.email,
+          passwordHash: pending.passwordHash,
+          phone: pending.phone,
+          paymentHandle: pending.paymentHandle,
+          currency: pending.currency,
+          isEmailVerified: true
+        });
+      } catch (error) {
+        if (error?.code === 11000) {
+          await PendingRegistration.deleteOne({ _id: pending._id });
+          throw new AppError(
+            409,
+            "An account already exists for this email. Please sign in with your provider."
+          );
+        }
+        throw error;
+      }
 
-    // Find user with matching non-expired token
-    const user = await User.findOne({
-      emailVerifyExpiresAt: { $gt: new Date() }
-    }).select("+emailVerifyTokenHash +emailVerifyExpiresAt");
-
-    if (!user || !user.emailVerifyTokenHash) {
-      throw new AppError(400, "Invalid or expired verification token");
+      await PendingRegistration.deleteOne({ _id: pending._id });
+      return res.json({ message: "Email verified successfully. You can now log in." });
     }
 
-    // Constant-time comparison
-    const storedHash = Buffer.from(user.emailVerifyTokenHash, "hex");
-    const incomingHash = Buffer.from(tokenHash, "hex");
-    
-    if (storedHash.length !== incomingHash.length || !crypto.timingSafeEqual(storedHash, incomingHash)) {
+    const user = await User.findOne({
+      emailVerifyTokenHash: tokenHash,
+      emailVerifyExpiresAt: { $gt: now }
+    }).select("+emailVerifyTokenHash +emailVerifyExpiresAt");
+
+    if (!user || !user.emailVerifyTokenHash || !compareHashes(user.emailVerifyTokenHash, tokenHash)) {
       throw new AppError(400, "Invalid or expired verification token");
     }
 
@@ -581,49 +668,77 @@ router.post("/verify-email", authRateLimiter, validate({ body: verifyEmailSchema
 });
 
 // POST /api/auth/resend-verification
-router.post("/resend-verification", authRateLimiter, validate({ body: resendVerificationSchema }), async (req, res, next) => {
-  try {
-    const { email } = req.validated.body;
-
-    // Always return success to prevent email enumeration
-    const genericResponse = { message: "If an unverified account exists for that email, we will send a new verification link when delivery is available." };
-
-    const user = await User.findOne({ email, isEmailVerified: false });
-    
-    // Don't send if user doesn't exist, is already verified, or is a demo user
-    if (!user || user.isDemo) {
-      return res.json(genericResponse);
-    }
-
-    const requestAllowed = await consumeEmailRequest(
-      user._id,
-      "verificationRequestCount",
-      "verificationRequestWindowStartedAt"
-    );
-    if (!requestAllowed) {
-      return res.json(genericResponse);
-    }
-
-    // Generate new verification token
-    const verifyToken = crypto.randomBytes(32).toString("hex");
-    const emailVerifyTokenHash = crypto.createHash("sha256").update(verifyToken).digest("hex");
-    const emailVerifyExpiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
-
-    user.emailVerifyTokenHash = emailVerifyTokenHash;
-    user.emailVerifyExpiresAt = emailVerifyExpiresAt;
-    await user.save();
-
+router.post(
+  "/resend-verification",
+  authRateLimiter,
+  ensureAuthDeviceId,
+  authDeviceRateLimiter,
+  validate({ body: resendVerificationSchema }),
+  authEmailRateLimiter,
+  async (req, res, next) => {
     try {
-      await sendVerificationEmail(email, verifyToken);
-    } catch {
-      console.error("[AUTH] Verification email could not be sent");
-    }
+      const { email } = req.validated.body;
 
-    res.json(genericResponse);
-  } catch (error) {
-    next(error);
+      // Always return success to prevent email enumeration
+      const genericResponse = { message: "If an unverified account exists for that email, we will send a new verification link when delivery is available." };
+
+      const now = new Date();
+      const pending = await PendingRegistration.findOne({
+        email,
+        expiresAt: { $gt: now }
+      });
+
+      if (pending) {
+        const verifyToken = crypto.randomBytes(32).toString("hex");
+        const emailVerifyTokenHash = hashToken(verifyToken);
+        const emailVerifyExpiresAt = new Date(now.getTime() + PENDING_REGISTRATION_TTL_MS);
+        const updatedPending = await PendingRegistration.findOneAndUpdate(
+          { _id: pending._id, expiresAt: { $gt: now } },
+          { $set: { emailVerifyTokenHash, expiresAt: emailVerifyExpiresAt } },
+          { new: true }
+        );
+
+        if (updatedPending) {
+          await sendVerificationEmailWithoutLeakingRecipient(email, verifyToken);
+          return res.json(genericResponse);
+        }
+      }
+
+      await PendingRegistration.deleteOne({ email, expiresAt: { $lte: now } });
+
+      const user = await User.findOne({ email, isEmailVerified: false });
+
+      // Don't send if user doesn't exist, is already verified, or is a demo user
+      if (!user || user.isDemo) {
+        return res.json(genericResponse);
+      }
+
+      const requestAllowed = await consumeEmailRequest(
+        user._id,
+        "verificationRequestCount",
+        "verificationRequestWindowStartedAt"
+      );
+      if (!requestAllowed) {
+        return res.json(genericResponse);
+      }
+
+      // Generate new verification token
+      const verifyToken = crypto.randomBytes(32).toString("hex");
+      const emailVerifyTokenHash = crypto.createHash("sha256").update(verifyToken).digest("hex");
+      const emailVerifyExpiresAt = new Date(now.getTime() + PENDING_REGISTRATION_TTL_MS);
+
+      user.emailVerifyTokenHash = emailVerifyTokenHash;
+      user.emailVerifyExpiresAt = emailVerifyExpiresAt;
+      await user.save();
+
+      await sendVerificationEmailWithoutLeakingRecipient(email, verifyToken);
+
+      res.json(genericResponse);
+    } catch (error) {
+      next(error);
+    }
   }
-});
+);
 
 router.get("/providers", (_req, res) => {
   res.json({ providers: getConfiguredOAuthProviders() });

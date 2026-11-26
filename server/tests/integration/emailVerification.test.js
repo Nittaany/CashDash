@@ -3,6 +3,7 @@ import request from "supertest";
 import "./setup.js";
 import { app } from "../../src/app.js";
 import User from "../../src/models/User.js";
+import PendingRegistration from "../../src/models/PendingRegistration.js";
 import { mockTransport } from "../../src/services/mailer.js";
 import { env } from "../../src/config/env.js";
 
@@ -14,10 +15,105 @@ describe("Email Verification Flow", () => {
 
   afterEach(() => {
     env.REQUIRE_EMAIL_VERIFICATION = false;
+    vi.restoreAllMocks();
     vi.unstubAllEnvs();
   });
 
   describe("POST /api/auth/register", () => {
+    it("keeps required-verification registrations pending without issuing a session", async () => {
+      env.REQUIRE_EMAIL_VERIFICATION = true;
+
+      const response = await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Pending User",
+          email: "pending-signup@example.com",
+          password: "Password123"
+        });
+
+      expect(response.status).toBe(202);
+      expect(response.body.requiresEmailVerification).toBe(true);
+      expect(response.body.user).toBeUndefined();
+      expect(response.body.accessToken).toBeUndefined();
+      expect(response.headers["set-cookie"]?.some((cookie) =>
+        cookie.startsWith("refreshToken=")
+      )).not.toBe(true);
+      expect(await User.findOne({ email: "pending-signup@example.com" })).toBeNull();
+      expect(await PendingRegistration.countDocuments({
+        email: "pending-signup@example.com"
+      })).toBe(1);
+      expect(mockTransport.sentEmails).toHaveLength(1);
+      expect(mockTransport.sentEmails[0].subject).toContain("Verify");
+    });
+
+    it("returns an identical generic response for eligible, duplicate, pending, and disposable addresses", async () => {
+      env.REQUIRE_EMAIL_VERIFICATION = true;
+      await User.create({
+        name: "Existing User",
+        email: "existing-signup@example.com",
+        passwordHash: "existing-password-hash",
+        isEmailVerified: true
+      });
+
+      const eligible = await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Eligible User",
+          email: "eligible-signup@example.com",
+          password: "Password123"
+        });
+      const pendingDuplicate = await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Eligible User",
+          email: "eligible-signup@example.com",
+          password: "Password123"
+        });
+      const existing = await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Existing User",
+          email: "existing-signup@example.com",
+          password: "Password123"
+        });
+      const disposable = await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Disposable User",
+          email: "person@mailinator.com",
+          password: "Password123"
+        });
+
+      expect([eligible, pendingDuplicate, existing, disposable].map(({ status }) => status))
+        .toEqual([202, 202, 202, 202]);
+      expect(pendingDuplicate.body).toEqual(eligible.body);
+      expect(existing.body).toEqual(eligible.body);
+      expect(disposable.body).toEqual(eligible.body);
+      expect(mockTransport.sentEmails).toHaveLength(1);
+      expect(await PendingRegistration.countDocuments()).toBe(1);
+      expect(await User.countDocuments()).toBe(1);
+    });
+
+    it("preserves local session registration when verification is explicitly disabled", async () => {
+      env.REQUIRE_EMAIL_VERIFICATION = false;
+
+      const response = await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Local User",
+          email: "local-signup@example.com",
+          password: "Password123"
+        });
+
+      expect(response.status).toBe(201);
+      expect(response.body.accessToken).toBeDefined();
+      expect(response.headers["set-cookie"]?.some((cookie) =>
+        cookie.startsWith("refreshToken=")
+      )).toBe(true);
+      expect(await User.findOne({ email: "local-signup@example.com" })).not.toBeNull();
+      expect(await PendingRegistration.countDocuments()).toBe(0);
+    });
+
     it("sends verification email on registration", async () => {
       const res = await request(app)
         .post("/api/auth/register")
@@ -65,6 +161,71 @@ describe("Email Verification Flow", () => {
       const emailHtml = mockTransport.sentEmails[0]?.html;
       const tokenMatch = emailHtml?.match(/token=([a-f0-9]+)/);
       verifyToken = tokenMatch ? tokenMatch[1] : null;
+    });
+
+    it("promotes a pending registration only after successful verification", async () => {
+      env.REQUIRE_EMAIL_VERIFICATION = true;
+      const email = "pending-verification@example.com";
+      const registration = await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Pending Verification",
+          email,
+          password: "Password123",
+          phone: "555-0101",
+          paymentHandle: "pending-handle",
+          currency: "USD"
+        });
+      const tokenMatch = mockTransport.sentEmails.at(-1)?.html.match(/token=([a-f0-9]+)/);
+      const token = tokenMatch?.[1];
+
+      expect(registration.status).toBe(202);
+      expect(await User.findOne({ email })).toBeNull();
+      expect(await PendingRegistration.countDocuments({ email })).toBe(1);
+
+      const verification = await request(app)
+        .post("/api/auth/verify-email")
+        .send({ token });
+
+      expect(verification.status).toBe(200);
+      expect(verification.body.message).toContain("verified successfully");
+      expect(await User.countDocuments({ email, isEmailVerified: true })).toBe(1);
+      expect(await PendingRegistration.countDocuments({ email })).toBe(0);
+      const verifiedUser = await User.findOne({ email });
+      expect(verifiedUser.phone).toBe("555-0101");
+      expect(verifiedUser.paymentHandle).toBe("pending-handle");
+      expect(verifiedUser.currency).toBe("USD");
+
+      const reused = await request(app)
+        .post("/api/auth/verify-email")
+        .send({ token });
+      expect(reused.status).toBe(400);
+    });
+
+    it("rejects expired pending-registration tokens", async () => {
+      env.REQUIRE_EMAIL_VERIFICATION = true;
+      const email = "expired-pending@example.com";
+      await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Expired Pending",
+          email,
+          password: "Password123"
+        });
+      const tokenMatch = mockTransport.sentEmails.at(-1)?.html.match(/token=([a-f0-9]+)/);
+      const token = tokenMatch?.[1];
+      await PendingRegistration.updateOne(
+        { email },
+        { $set: { expiresAt: new Date(Date.now() - 1000) } }
+      );
+
+      const response = await request(app)
+        .post("/api/auth/verify-email")
+        .send({ token });
+
+      expect(response.status).toBe(400);
+      expect(response.body.error).toContain("Invalid or expired");
+      expect(await User.findOne({ email })).toBeNull();
     });
 
     it("successfully verifies email with valid token", async () => {
@@ -196,6 +357,72 @@ describe("Email Verification Flow", () => {
       // No email sent for already verified
       expect(mockTransport.sentEmails.length).toBe(0);
     });
+
+    it("rotates the token for a pending signup and keeps resend responses generic", async () => {
+      env.REQUIRE_EMAIL_VERIFICATION = true;
+      const email = "pending-resend@example.com";
+      await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Pending Resend",
+          email,
+          password: "Password123"
+        });
+      const oldTokenMatch = mockTransport.sentEmails[0]?.html.match(/token=([a-f0-9]+)/);
+      const oldToken = oldTokenMatch?.[1];
+      const oldRegistration = await PendingRegistration.findOne({ email })
+        .select("+emailVerifyTokenHash");
+      mockTransport.clear();
+
+      const resent = await request(app)
+        .post("/api/auth/resend-verification")
+        .send({ email });
+      const newTokenMatch = mockTransport.sentEmails[0]?.html.match(/token=([a-f0-9]+)/);
+      const newToken = newTokenMatch?.[1];
+      const updatedRegistration = await PendingRegistration.findOne({ email })
+        .select("+emailVerifyTokenHash");
+      const unknown = await request(app)
+        .post("/api/auth/resend-verification")
+        .send({ email: "unknown-pending@example.com" });
+
+      expect(resent.status).toBe(200);
+      expect(unknown.status).toBe(200);
+      expect(unknown.body).toEqual(resent.body);
+      expect(newToken).toBeDefined();
+      expect(updatedRegistration.emailVerifyTokenHash).not.toBe(oldRegistration.emailVerifyTokenHash);
+
+      const oldTokenVerification = await request(app)
+        .post("/api/auth/verify-email")
+        .send({ token: oldToken });
+      expect(oldTokenVerification.status).toBe(400);
+
+      const newTokenVerification = await request(app)
+        .post("/api/auth/verify-email")
+        .send({ token: newToken });
+      expect(newTokenVerification.status).toBe(200);
+    });
+
+    it("keeps the generic resend response when email delivery fails", async () => {
+      env.REQUIRE_EMAIL_VERIFICATION = true;
+      const email = "delivery-failure@example.com";
+      await request(app)
+        .post("/api/auth/register")
+        .send({
+          name: "Delivery Failure",
+          email,
+          password: "Password123"
+        });
+      mockTransport.clear();
+      vi.spyOn(mockTransport, "send").mockRejectedValueOnce(new Error("provider unavailable"));
+
+      const response = await request(app)
+        .post("/api/auth/resend-verification")
+        .send({ email });
+
+      expect(response.status).toBe(200);
+      expect(response.body.message).toContain("If an unverified account exists");
+      expect(mockTransport.sentEmails).toHaveLength(0);
+    });
   });
 
   describe("POST /api/auth/login with REQUIRE_EMAIL_VERIFICATION", () => {
@@ -210,18 +437,20 @@ describe("Email Verification Flow", () => {
           password: "Password123"
         });
 
-      expect(registration.status).toBe(201);
+      expect(registration.status).toBe(202);
       expect(registration.body.requiresEmailVerification).toBe(true);
       expect(registration.body.accessToken).toBeUndefined();
-      expect(registration.headers["set-cookie"]).toBeUndefined();
+      expect(registration.headers["set-cookie"]?.some((cookie) =>
+        cookie.startsWith("refreshToken=")
+      )).not.toBe(true);
       expect(mockTransport.sentEmails).toHaveLength(1);
 
       const login = await request(app)
         .post("/api/auth/login")
         .send({ email: "pending@example.com", password: "Password123" });
 
-      expect(login.status).toBe(403);
-      expect(login.body.error).toBe("Please verify your email before logging in");
+      expect(login.status).toBe(401);
+      expect(login.body.error).toBe("Invalid credentials");
     });
 
     it("rejects existing refresh cookies and access tokens for unverified accounts", async () => {

@@ -2,10 +2,42 @@ import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
 import { app } from "../../src/app.js";
 import User from "../../src/models/User.js";
+import PendingRegistration from "../../src/models/PendingRegistration.js";
+import { env } from "../../src/config/env.js";
 import "./setup.js";
 
 describe("Auth Routes", () => {
   describe("POST /api/auth/register", () => {
+    it("does not create a permanent account or allow login before verification", async () => {
+      env.REQUIRE_EMAIL_VERIFICATION = true;
+
+      try {
+        const registration = await request(app)
+          .post("/api/auth/register")
+          .send({
+            name: "Unverified User",
+            email: "unverified-auth@example.com",
+            password: "TestPass123"
+          });
+        const login = await request(app)
+          .post("/api/auth/login")
+          .send({
+            email: "unverified-auth@example.com",
+            password: "TestPass123"
+          });
+
+        expect(registration.status).toBe(202);
+        expect(await User.findOne({ email: "unverified-auth@example.com" })).toBeNull();
+        expect(await PendingRegistration.countDocuments({
+          email: "unverified-auth@example.com"
+        })).toBe(1);
+        expect(login.status).toBe(401);
+        expect(login.body.error).toBe("Invalid credentials");
+      } finally {
+        env.REQUIRE_EMAIL_VERIFICATION = false;
+      }
+    });
+
     it("registers a new user successfully", async () => {
       const res = await request(app)
         .post("/api/auth/register")

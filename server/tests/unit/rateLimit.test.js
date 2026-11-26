@@ -121,6 +121,33 @@ describe("Rate Limiter", () => {
     expect(authDeviceRateLimitKey("secret-device-id")).not.toContain("secret-device-id");
   });
 
+  it("limits an email to three requests per hour", async () => {
+    const app = express();
+    app.use(express.json());
+    app.use((req, _res, next) => {
+      req.validated = { body: req.body };
+      next();
+    });
+    app.use(createAuthRateLimiter({
+      windowMs: 60 * 60 * 1000,
+      limit: 3,
+      message: { error: "Email limit" },
+      keyGenerator: (req) => authEmailRateLimitKey(req.validated.body.email),
+      skipInTest: false
+    }));
+    app.post("/email", (_req, res) => res.json({ ok: true }));
+
+    const responses = [];
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      responses.push(await request(app)
+        .post("/email")
+        .send({ email: "  email-limit@example.com  " }));
+    }
+
+    expect(responses.map(({ status }) => status)).toEqual([200, 200, 200, 429]);
+    expect(responses[3].body.error).toBe("Email limit");
+  });
+
   it("keeps IP, normalized-email, and device request buckets independent", async () => {
     const app = express();
 
